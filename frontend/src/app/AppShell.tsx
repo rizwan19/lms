@@ -9,10 +9,14 @@ const ROLE_LABELS: Record<Role, string> = { ADMINISTRATOR: 'Administrator', TEAC
 
 const NAVIGATION: Record<Role, { to: string; label: string }[]> = {
   ADMINISTRATOR: [
+    { to: '/teacher/courses', label: 'Courses' },
     { to: '/admin/users', label: 'Accounts' },
     { to: '/admin/settings', label: 'Settings' },
   ],
-  TEACHER: [{ to: '/admin/users', label: 'Students' }],
+  TEACHER: [
+    { to: '/teacher/courses', label: 'Courses' },
+    { to: '/admin/users', label: 'Students' },
+  ],
   STUDENT: [{ to: '/student', label: 'My learning' }],
 }
 

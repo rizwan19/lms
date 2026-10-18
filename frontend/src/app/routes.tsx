@@ -1,4 +1,5 @@
 import { Navigate, type RouteObject } from 'react-router'
+import type { Role } from '../shared/types'
 import { AppShell } from './AppShell'
 import { RequireAuth, homePath, useSession } from './session'
 import { LoginPage } from '../features/auth/LoginPage'
@@ -8,11 +9,16 @@ import { ForgotPasswordPage } from '../features/auth/ForgotPasswordPage'
 import { TokenPasswordPage } from '../features/auth/TokenPasswordPage'
 import { AccountListPage } from '../features/accounts/AccountListPage'
 import { InstitutionSettingsPage } from '../features/settings/InstitutionSettingsPage'
+import { CourseListPage } from '../features/courses/CourseListPage'
+import { CourseEditorPage } from '../features/courses/CourseEditorPage'
+import { CoursePreviewPage } from '../features/courses/CoursePreviewPage'
 
 function Home() {
   const { activeRole } = useSession()
   return <Navigate to={homePath(activeRole)} replace />
 }
+
+const STAFF: Role[] = ['ADMINISTRATOR', 'TEACHER']
 
 export const routes: RouteObject[] = [
   {
@@ -25,8 +31,11 @@ export const routes: RouteObject[] = [
       { path: '/reset-password', element: <TokenPasswordPage mode="reset" /> },
       { path: '/accept-invitation', element: <TokenPasswordPage mode="invitation" /> },
       { path: '/change-password', element: <RequireAuth><ChangePasswordPage /></RequireAuth> },
-      { path: '/admin/users', element: <RequireAuth roles={['ADMINISTRATOR', 'TEACHER']}><AccountListPage /></RequireAuth> },
+      { path: '/admin/users', element: <RequireAuth roles={STAFF}><AccountListPage /></RequireAuth> },
       { path: '/admin/settings', element: <RequireAuth roles={['ADMINISTRATOR']}><InstitutionSettingsPage /></RequireAuth> },
+      { path: '/teacher/courses', element: <RequireAuth roles={STAFF}><CourseListPage /></RequireAuth> },
+      { path: '/teacher/courses/:id/edit', element: <RequireAuth roles={STAFF}><CourseEditorPage /></RequireAuth> },
+      { path: '/teacher/courses/:id/preview', element: <RequireAuth roles={STAFF}><CoursePreviewPage /></RequireAuth> },
       { path: '*', element: <p>Page not found.</p> },
     ],
   },

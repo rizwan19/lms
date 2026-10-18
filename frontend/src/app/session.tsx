@@ -40,7 +40,7 @@ export function homePath(role: Role | null): string {
     case 'ADMINISTRATOR':
       return '/admin/users'
     case 'TEACHER':
-      return '/admin/users'
+      return '/teacher/courses'
     case 'STUDENT':
       return '/student'
     default:

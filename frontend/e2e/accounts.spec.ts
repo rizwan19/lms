@@ -14,7 +14,8 @@ test('administrator creates staff and students; teachers manage their own studen
   await signOut(page)
 
   await activateAccount(page, teacher, teacherTemp)
-  await expect(page.getByRole('heading', { name: 'Students' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Courses' })).toBeVisible()
+  await page.getByRole('link', { name: 'Students' }).click()
 
   const student = unique('student')
   const studentTemp = await createAccount(page, { username: student, displayName: 'রহিম উদ্দিন' })
@@ -26,6 +27,7 @@ test('administrator creates staff and students; teachers manage their own studen
 
   // Assisted reset by the teacher who created the student.
   await signIn(page, teacher, PASSWORD)
+  await page.getByRole('link', { name: 'Students' }).click()
   await page.getByRole('button', { name: `Reset password for ${student}` }).click()
   const resetPassword = await page.getByTestId('temporary-password').innerText()
   await signOut(page)

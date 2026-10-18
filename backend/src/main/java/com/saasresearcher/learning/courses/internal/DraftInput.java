@@ -1,0 +1,16 @@
+package com.saasresearcher.learning.courses.internal;
+
+import com.saasresearcher.learning.courses.api.VideoProvider;
+import java.util.List;
+import java.util.UUID;
+
+/** Client-supplied draft tree. IDs are optional and honoured only when they already belong to the draft. */
+record DraftInput(long expectedRevision, String title, String description, List<SectionInput> sections) {
+
+    record SectionInput(UUID id, String title, List<LessonInput> lessons) {
+    }
+
+    record LessonInput(UUID id, String title, String bodyHtml, UUID videoAssetId, VideoProvider videoProvider, String videoRef,
+            List<UUID> resourceAssetIds, boolean required) {
+    }
+}

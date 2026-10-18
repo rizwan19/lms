@@ -29,6 +29,7 @@ explicitly versioned libraries are pinned in `backend/pom.xml`. Frontend version
 | Tomcat embed | 11.0.24 | Apache-2.0 |
 | PostgreSQL JDBC | 42.7.13 | BSD-2-Clause |
 | Testcontainers | BOM-managed 2.x | MIT |
+| OWASP Java HTML Sanitizer (pinned) | 20261011.1 | Apache-2.0 |
 | ArchUnit (pinned) | 1.5.1 | Apache-2.0 |
 
 ## Frontend (exact)
@@ -38,6 +39,7 @@ explicitly versioned libraries are pinned in `backend/pom.xml`. Frontend version
 | react / react-dom | 19.3.1 | MIT |
 | react-router | 8.4.0 | MIT |
 | @tanstack/react-query | 5.104.4 | MIT |
+| @tiptap/react / starter-kit / pm | 3.32.0 | MIT |
 | typescript | 5.9.3 | Apache-2.0 |
 | vite | 8.3.4 | MIT |
 | @vitejs/plugin-react | 6.1.2 | MIT |

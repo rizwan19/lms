@@ -18,6 +18,7 @@ tags:
   - name: notifications
   - name: operations
   - name: media
+  - name: courses
 paths:
   /auth/csrf:
     get:
@@ -235,6 +236,94 @@ paths:
         '206': { description: Requested range }
         '404': { $ref: '#/components/responses/Problem' }
         '416': { description: Range not satisfiable }
+  /courses:
+    get:
+      tags: [courses]
+      summary: Courses the caller authors (administrators see all)
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, ARCHIVED], default: ACTIVE } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200': { description: Page of course summaries, content: { application/json: { schema: { $ref: '#/components/schemas/CourseSummaryPage' } } } }
+    post:
+      tags: [courses]
+      summary: Create a course with an empty draft; the creator becomes a course teacher
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [title], properties: { title: { type: string, maxLength: 200 } } } } } }
+      responses:
+        '201': { description: Course, content: { application/json: { schema: { $ref: '#/components/schemas/CourseDetail' } } } }
+  /courses/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [courses]
+      summary: Course detail with teachers, editions and draft header
+      responses:
+        '200': { description: Course, content: { application/json: { schema: { $ref: '#/components/schemas/CourseDetail' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /courses/{id}/draft:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [courses]
+      summary: The editable draft (409 NO_DRAFT when none exists)
+      responses:
+        '200': { description: Draft, content: { application/json: { schema: { $ref: '#/components/schemas/Draft' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+    put:
+      tags: [courses]
+      summary: Replace the draft tree with expected revision; HTML is sanitized, embeds take provider IDs only
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DraftInput' } } } }
+      responses:
+        '200': { description: Saved draft, content: { application/json: { schema: { $ref: '#/components/schemas/Draft' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [courses]
+      summary: Start a correction draft copied from a published edition (409 DRAFT_EXISTS)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [fromVersionId], properties: { fromVersionId: { type: string, format: uuid } } } } } }
+      responses:
+        '201': { description: Draft, content: { application/json: { schema: { $ref: '#/components/schemas/Draft' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+  /courses/{id}/publish:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [courses]
+      summary: Seal the draft as the next immutable edition
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [expectedRevision], properties: { expectedRevision: { type: integer } } } } } }
+      responses:
+        '200': { description: Published edition, content: { application/json: { schema: { $ref: '#/components/schemas/PublishedCourse' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /courses/{id}/preview:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [courses]
+      summary: Draft (default) or a given edition as students see it
+      parameters:
+        - { name: versionId, in: query, schema: { type: string, format: uuid } }
+      responses:
+        '200': { description: Preview, content: { application/json: { schema: { $ref: '#/components/schemas/CoursePreview' } } } }
+  /courses/{id}/archive:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [courses]
+      summary: Remove from catalogue and class creation; existing classes keep access
+      responses:
+        '204': { description: Archived }
+  /courses/{id}/restore:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [courses]
+      summary: Return an archived course to the active list
+      responses:
+        '204': { description: Restored }
+  /courses/{id}/teachers:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    put:
+      tags: [courses]
+      summary: Replace course teachers (administrator)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [teacherIds], properties: { teacherIds: { type: array, items: { type: string, format: uuid } } } } } } }
+      responses:
+        '200': { description: Course, content: { application/json: { schema: { $ref: '#/components/schemas/CourseDetail' } } } }
 components:
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -389,3 +478,106 @@ components:
         page: { type: integer }
         size: { type: integer }
         total: { type: integer }
+    CourseSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        status: { type: string, enum: [ACTIVE, ARCHIVED] }
+        latestEdition: { type: [integer, 'null'] }
+        draftRevision: { type: [integer, 'null'] }
+        updatedAt: { type: string, format: date-time }
+    CourseSummaryPage:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/CourseSummary' } }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer }
+    CourseDetail:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        status: { type: string, enum: [ACTIVE, ARCHIVED] }
+        teachers: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, displayName: { type: string } } } }
+        editions: { type: array, items: { type: object, properties: { versionId: { type: string, format: uuid }, edition: { type: integer }, title: { type: string }, publishedAt: { type: string, format: date-time } } } }
+        draft: { oneOf: [{ type: 'null' }, { type: object, properties: { versionId: { type: string, format: uuid }, revision: { type: integer }, basedOnEdition: { type: [integer, 'null'] } } }] }
+    LessonVideo:
+      type: object
+      properties:
+        assetId: { type: [string, 'null'], format: uuid }
+        provider: { type: [string, 'null'], enum: [YOUTUBE, VIMEO, null] }
+        providerRef: { type: [string, 'null'] }
+    CourseLesson:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        bodyHtml: { type: string, description: Sanitized allowlisted HTML }
+        video: { oneOf: [{ $ref: '#/components/schemas/LessonVideo' }, { type: 'null' }] }
+        resourceAssetIds: { type: array, items: { type: string, format: uuid } }
+        required: { type: boolean }
+    CourseSection:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        lessons: { type: array, items: { $ref: '#/components/schemas/CourseLesson' } }
+    Draft:
+      type: object
+      properties:
+        versionId: { type: string, format: uuid }
+        courseId: { type: string, format: uuid }
+        revision: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        sections: { type: array, items: { $ref: '#/components/schemas/CourseSection' } }
+    DraftInput:
+      type: object
+      required: [expectedRevision, title, sections]
+      properties:
+        expectedRevision: { type: integer }
+        title: { type: string, maxLength: 200 }
+        description: { type: string, maxLength: 5000 }
+        sections:
+          type: array
+          maxItems: 100
+          items:
+            type: object
+            properties:
+              id: { type: [string, 'null'], format: uuid }
+              title: { type: string }
+              lessons:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: { type: [string, 'null'], format: uuid }
+                    title: { type: string }
+                    bodyHtml: { type: string }
+                    videoAssetId: { type: [string, 'null'], format: uuid }
+                    videoProvider: { type: [string, 'null'], enum: [YOUTUBE, VIMEO, null] }
+                    videoRef: { type: [string, 'null'], description: Provider video ID, never a URL }
+                    resourceAssetIds: { type: array, items: { type: string, format: uuid } }
+                    required: { type: boolean }
+    PublishedCourse:
+      type: object
+      properties:
+        versionId: { type: string, format: uuid }
+        courseId: { type: string, format: uuid }
+        edition: { type: integer }
+        title: { type: string }
+        description: { type: string }
+        publishedAt: { type: string, format: date-time }
+        archived: { type: boolean }
+        sections: { type: array, items: { $ref: '#/components/schemas/CourseSection' } }
+    CoursePreview:
+      type: object
+      properties:
+        versionId: { type: string, format: uuid }
+        courseId: { type: string, format: uuid }
+        edition: { type: [integer, 'null'] }
+        title: { type: string }
+        description: { type: string }
+        sections: { type: array, items: { $ref: '#/components/schemas/CourseSection' } }
