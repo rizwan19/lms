@@ -8,9 +8,11 @@ import com.saasresearcher.learning.common.ErrorCodes;
 import com.saasresearcher.learning.common.PageQuery;
 import com.saasresearcher.learning.common.Revisions;
 import com.saasresearcher.learning.common.Role;
+import com.saasresearcher.learning.identity.api.AccountProvisioning;
 import com.saasresearcher.learning.identity.api.AccountStatus;
 import com.saasresearcher.learning.identity.api.AccountSummary;
 import com.saasresearcher.learning.identity.api.IdentityAccess;
+import com.saasresearcher.learning.identity.api.ProvisionedStudent;
 import com.saasresearcher.learning.identity.api.TemporaryCredential;
 import com.saasresearcher.learning.notifications.api.EmailSender;
 import jakarta.persistence.criteria.Predicate;
@@ -33,7 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-class AccountService implements IdentityAccess {
+class AccountService implements IdentityAccess, AccountProvisioning {
 
     private final UserAccountRepository accounts;
     private final AccountAuthorization authorization;
@@ -74,6 +76,35 @@ class AccountService implements IdentityAccess {
     @Transactional(readOnly = true)
     public Optional<AccountSummary> findByUsername(String username) {
         return accounts.findByUsername(username.trim().toLowerCase(Locale.ROOT)).map(UserAccount::toSummary);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<AccountSummary> findByEmail(String email) {
+        return accounts.findByEmail(email.trim().toLowerCase(Locale.ROOT)).map(UserAccount::toSummary);
+    }
+
+    @Override
+    @Transactional
+    public ProvisionedStudent createStudent(String username, String displayName, String email, Actor creator) {
+        boolean invite = email != null && !email.isBlank() && this.email.isConfigured();
+        CreatedAccount created = create(new NewAccount(username, displayName, email, Set.of(Role.STUDENT),
+                invite ? CredentialDelivery.INVITATION : CredentialDelivery.TEMPORARY_PASSWORD), creator);
+        return new ProvisionedStudent(created.account().id(), created.temporaryCredential(), created.invitationExpiresAt());
+    }
+
+    @Override
+    public List<String> studentProblems(String username, String displayName, String email) {
+        List<String> problems = new ArrayList<>();
+        for (Runnable rule : List.<Runnable>of(() -> AccountRules.username(username), () -> AccountRules.displayName(displayName),
+                () -> AccountRules.email(email))) {
+            try {
+                rule.run();
+            } catch (ApiException invalid) {
+                problems.addAll(invalid.fieldErrors().values());
+            }
+        }
+        return problems;
     }
 
     @Transactional(readOnly = true)

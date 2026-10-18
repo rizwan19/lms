@@ -14,4 +14,6 @@ public interface IdentityAccess {
     Map<UUID, AccountSummary> summaries(Collection<UUID> userIds);
 
     Optional<AccountSummary> findByUsername(String username);
+
+    Optional<AccountSummary> findByEmail(String email);
 }

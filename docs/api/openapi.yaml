@@ -428,6 +428,45 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [status], properties: { status: { type: string, enum: [ACTIVE, SUSPENDED, WITHDRAWN] } } } } } }
       responses:
         '200': { description: Enrollment, content: { application/json: { schema: { $ref: '#/components/schemas/RosterRow' } } } }
+  /classes/{id}/imports/preview:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [classes]
+      summary: Validate a roster CSV (username,display_name,email; UTF-8, optional BOM, max 1 MiB and 1,000 rows)
+      requestBody: { required: true, content: { text/csv: { schema: { type: string } } } }
+      responses:
+        '200': { description: Row-by-row validation, content: { application/json: { schema: { $ref: '#/components/schemas/RosterImportPreview' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '413': { $ref: '#/components/responses/Problem' }
+  /classes/{id}/imports/commit:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [classes]
+      summary: Revalidate and import all rows or none. Returns one-time temporary passwords for students without invitations (no-store).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [digest, rows]
+              properties:
+                digest: { type: string }
+                rows: { type: array, maxItems: 1000, items: { type: object, properties: { username: { type: string }, displayName: { type: string }, email: { type: [string, 'null'] } } } }
+      responses:
+        '200':
+          description: Imported
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enrolled: { type: integer }
+                  created: { type: integer }
+                  invited: { type: integer }
+                  credentials: { type: array, items: { $ref: '#/components/schemas/TemporaryCredential' } }
+        '409': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
 components:
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -732,3 +771,21 @@ components:
         page: { type: integer }
         size: { type: integer }
         total: { type: integer }
+    RosterImportPreview:
+      type: object
+      properties:
+        rows:
+          type: array
+          items:
+            type: object
+            properties:
+              line: { type: integer }
+              username: { type: string }
+              displayName: { type: string }
+              email: { type: [string, 'null'] }
+              outcome: { type: string, enum: [NEW_ACCOUNT, ENROLL_EXISTING, INVALID] }
+              errors: { type: array, items: { type: string } }
+        newAccounts: { type: integer }
+        existingStudents: { type: integer }
+        invalidRows: { type: integer }
+        digest: { type: string }

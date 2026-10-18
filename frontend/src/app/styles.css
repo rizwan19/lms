@@ -92,6 +92,7 @@ button:disabled { opacity: 0.6; cursor: not-allowed; }
 .lesson-body table { width: auto; }
 .lesson-video { width: 100%; max-height: 70vh; background: #000; }
 .embed iframe { width: 100%; aspect-ratio: 16 / 9; border: 0; }
+tr.invalid { background: #fdecea; }
 .empty { color: var(--muted); padding: 1.5rem; text-align: center; border: 1px dashed var(--border); border-radius: 8px; }
 
 .table-scroll { overflow-x: auto; }

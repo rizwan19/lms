@@ -30,6 +30,7 @@ explicitly versioned libraries are pinned in `backend/pom.xml`. Frontend version
 | PostgreSQL JDBC | 42.7.13 | BSD-2-Clause |
 | Testcontainers | BOM-managed 2.x | MIT |
 | OWASP Java HTML Sanitizer (pinned) | 20261011.1 | Apache-2.0 |
+| Apache Commons CSV (pinned) | 1.14.1 | Apache-2.0 |
 | ArchUnit (pinned) | 1.5.1 | Apache-2.0 |
 
 ## Frontend (exact)

@@ -10,6 +10,7 @@ import { useSession } from '../../app/session'
 import { CreateAccountForm } from '../accounts/CreateAccountForm'
 import { CredentialNotice } from '../accounts/CredentialNotice'
 import type { Account } from '../accounts/types'
+import { RosterImportDialog } from './RosterImportDialog'
 import { ScheduleFields } from './ScheduleFields'
 import type { ClassDetail, EnrollmentStatus, RosterRow } from './types'
 
@@ -131,6 +132,7 @@ function Roster({ classId, archived }: { classId: string; archived: boolean }) {
   const [page, setPage] = useState(0)
   const [filter, setFilter] = useState<EnrollmentStatus | ''>('')
   const [creating, setCreating] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [credentials, setCredentials] = useState<TemporaryCredential[]>([])
   const roster = useQuery({
     queryKey: ['roster', classId, filter, page],
@@ -166,8 +168,12 @@ function Roster({ classId, archived }: { classId: string; archived: boolean }) {
           <button type="button" onClick={() => setCreating(true)}>
             Create new student
           </button>
+          <button type="button" onClick={() => setImporting(true)}>
+            Import CSV
+          </button>
         </form>
       )}
+      {importing && <RosterImportDialog classId={classId} onImported={refresh} onClose={() => setImporting(false)} />}
       {creating && (
         <CreateAccountForm
           isAdministrator={false}

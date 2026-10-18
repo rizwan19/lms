@@ -20,6 +20,7 @@
         <java.version>21</java.version>
         <archunit.version>1.5.1</archunit.version>
         <owasp-html-sanitizer.version>20261011.1</owasp-html-sanitizer.version>
+        <commons-csv.version>1.14.1</commons-csv.version>
     </properties>
 
     <dependencies>
@@ -63,6 +64,11 @@
             <groupId>com.googlecode.owasp-java-html-sanitizer</groupId>
             <artifactId>owasp-java-html-sanitizer</artifactId>
             <version>${owasp-html-sanitizer.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-csv</artifactId>
+            <version>${commons-csv.version}</version>
         </dependency>
         <dependency>
             <groupId>org.postgresql</groupId>
