@@ -58,7 +58,11 @@ public abstract class PostgresIntegrationTest {
         if (!tables.isEmpty()) {
             jdbc.sql("truncate table " + String.join(", ", tables) + " cascade").update();
         }
-        jdbc.sql("update institution_settings set name = 'Learning Portal', timezone = 'UTC'").update();
+        // institution_settings references media, so the cascade may empty it; restore the singleton.
+        jdbc.sql("""
+                insert into institution_settings (id, name, timezone, updated_at) values (1, 'Learning Portal', 'UTC', now())
+                on conflict (id) do update set name = excluded.name, timezone = excluded.timezone, logo_asset_id = null
+                """).update();
     }
 
     /** A new client with its own cookie jar, i.e. a separate browser session. */

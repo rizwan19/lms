@@ -1,12 +1,17 @@
 package com.saasresearcher.learning.institution.internal;
 
+import com.saasresearcher.learning.audit.api.AuditEntry;
+import com.saasresearcher.learning.audit.api.AuditLog;
 import com.saasresearcher.learning.common.Actor;
 import com.saasresearcher.learning.common.ApiException;
 import com.saasresearcher.learning.common.Revisions;
 import com.saasresearcher.learning.institution.api.InstitutionProfile;
 import com.saasresearcher.learning.institution.api.InstitutionSettings;
+import com.saasresearcher.learning.media.api.AssetPurpose;
+import com.saasresearcher.learning.media.api.MediaCatalog;
 import java.time.Clock;
 import java.time.ZoneId;
+import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,10 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 class InstitutionService implements InstitutionSettings {
 
     private final InstitutionSettingsRepository repository;
+    private final MediaCatalog media;
+    private final AuditLog audit;
     private final Clock clock;
 
-    InstitutionService(InstitutionSettingsRepository repository, Clock clock) {
+    InstitutionService(InstitutionSettingsRepository repository, MediaCatalog media, AuditLog audit, Clock clock) {
         this.repository = repository;
+        this.media = media;
+        this.audit = audit;
         this.clock = clock;
     }
 
@@ -40,15 +49,25 @@ class InstitutionService implements InstitutionSettings {
     }
 
     @Transactional
-    InstitutionProfile update(String name, ZoneId timezone, long expectedRevision, Actor actor) {
+    InstitutionProfile update(String name, ZoneId timezone, UUID logoAssetId, long expectedRevision, Actor actor) {
         if (!actor.isAdministrator()) {
             throw ApiException.accessDenied("Only administrators can change institution settings");
+        }
+        if (logoAssetId != null && media.requireAvailable(logoAssetId).purpose() != AssetPurpose.BRANDING_IMAGE) {
+            throw ApiException.invalid("logoAssetId", "Choose an uploaded branding image");
         }
         InstitutionSettingsRecord settings = singleton();
         Revisions.require(expectedRevision, settings.version());
         settings.update(name, timezone, clock.instant());
+        settings.setLogo(logoAssetId, clock.instant());
         repository.flush();
+        audit.record(AuditEntry.success(actor.userId(), "institution.updated", "institution", null));
         return toProfile(settings);
+    }
+
+    @Transactional(readOnly = true)
+    boolean isLogo(UUID assetId) {
+        return assetId.equals(singleton().logoAssetId());
     }
 
     private InstitutionSettingsRecord singleton() {
@@ -56,6 +75,6 @@ class InstitutionService implements InstitutionSettings {
     }
 
     private static InstitutionProfile toProfile(InstitutionSettingsRecord settings) {
-        return new InstitutionProfile(settings.name(), settings.timezone(), settings.version());
+        return new InstitutionProfile(settings.name(), settings.timezone(), settings.logoAssetId(), settings.version());
     }
 }

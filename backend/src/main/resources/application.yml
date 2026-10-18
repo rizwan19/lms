@@ -63,3 +63,7 @@ learning:
     setup-token: ${LEARNING_SETUP_TOKEN:}
   mail:
     from: ${LEARNING_MAIL_FROM:}
+  media:
+    storage-root: ${LEARNING_MEDIA_ROOT:data/media}
+    staging-dir: ${LEARNING_STAGING_DIR:data/staging}
+    ffprobe-path: ${LEARNING_FFPROBE:ffprobe}

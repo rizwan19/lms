@@ -7,6 +7,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.UUID;
 
 @Entity
 @Table(name = "institution_settings")
@@ -23,6 +24,9 @@ class InstitutionSettingsRecord {
     @Column(nullable = false)
     private String timezone;
 
+    @Column(name = "logo_asset_id")
+    private UUID logoAssetId;
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
@@ -36,6 +40,15 @@ class InstitutionSettingsRecord {
         this.name = name.trim();
         this.timezone = timezone.getId();
         this.updatedAt = now;
+    }
+
+    void setLogo(UUID logoAssetId, Instant now) {
+        this.logoAssetId = logoAssetId;
+        this.updatedAt = now;
+    }
+
+    UUID logoAssetId() {
+        return logoAssetId;
     }
 
     String name() {

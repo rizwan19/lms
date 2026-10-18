@@ -45,6 +45,11 @@ public class ApiClient {
         return send(request(path).POST(HttpRequest.BodyPublishers.ofByteArray(body)).header("Content-Type", contentType));
     }
 
+    /** Streams a generated body with chunked transfer encoding (no Content-Length, nothing buffered). */
+    public ApiResponse postStream(String path, java.util.function.Supplier<java.io.InputStream> body, String contentType) {
+        return send(request(path).POST(HttpRequest.BodyPublishers.ofInputStream(body)).header("Content-Type", contentType));
+    }
+
     public ApiResponse send(HttpRequest.Builder builder) {
         try {
             HttpResponse<byte[]> response = http.send(builder.build(), HttpResponse.BodyHandlers.ofByteArray());

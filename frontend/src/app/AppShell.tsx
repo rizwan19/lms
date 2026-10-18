@@ -32,7 +32,10 @@ export function AppShell() {
         Skip to content
       </a>
       <header className="topbar">
-        <strong className="brand">{institution.data?.name ?? 'Learning Portal'}</strong>
+        <strong className="brand">
+          {me && institution.data?.logoAssetId && <img src={`/api/v1/media/${institution.data.logoAssetId}/content`} alt="" />}
+          {institution.data?.name ?? 'Learning Portal'}
+        </strong>
         {me && activeRole && !me.passwordChangeRequired && (
           <nav aria-label="Main">
             {NAVIGATION[activeRole].map((item) => (

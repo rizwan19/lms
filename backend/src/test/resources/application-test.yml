@@ -14,6 +14,9 @@ learning:
   public-origin: http://localhost:5173
   jobs:
     enabled: false
+  media:
+    storage-root: target/test-media/assets
+    staging-dir: target/test-media/staging
   identity:
     setup-token: test-setup-token
     password-hash-strength: 4

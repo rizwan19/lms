@@ -17,6 +17,7 @@ tags:
   - name: institution
   - name: notifications
   - name: operations
+  - name: media
 paths:
   /auth/csrf:
     get:
@@ -190,6 +191,50 @@ paths:
         - { $ref: '#/components/parameters/Size' }
       responses:
         '200': { description: Page of failed jobs, content: { application/json: { schema: { $ref: '#/components/schemas/FailedJobPage' } } } }
+  /media:
+    post:
+      tags: [media]
+      summary: Upload a file as the raw request body (streamed; staff only, branding images administrators only)
+      description: |
+        Accepted: VIDEO video/mp4 (H.264/AAC, max 500 MiB); DOCUMENT application/pdf or text/plain (UTF-8, max 25 MiB);
+        BRANDING_IMAGE image/png or image/jpeg (max 5 MiB, re-encoded as PNG). Content must match the declared type.
+      parameters:
+        - { name: purpose, in: query, required: true, schema: { $ref: '#/components/schemas/AssetPurpose' } }
+        - { name: filename, in: query, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content:
+          video/mp4: { schema: { type: string, format: binary } }
+          application/pdf: { schema: { type: string, format: binary } }
+          text/plain: { schema: { type: string, format: binary } }
+          image/png: { schema: { type: string, format: binary } }
+          image/jpeg: { schema: { type: string, format: binary } }
+      responses:
+        '201': { description: Available asset, content: { application/json: { schema: { $ref: '#/components/schemas/Asset' } } } }
+        '413': { $ref: '#/components/responses/Problem' }
+        '415': { $ref: '#/components/responses/Problem' }
+        '422': { $ref: '#/components/responses/Problem' }
+  /media/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [media]
+      summary: Metadata of a readable asset
+      responses:
+        '200': { description: Asset, content: { application/json: { schema: { $ref: '#/components/schemas/Asset' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /media/{id}/content:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [media]
+      summary: Private delivery, authorized on every request; supports a single HTTP Range. Cache-Control private, no-store.
+      parameters:
+        - { name: download, in: query, schema: { type: boolean, default: false } }
+        - { name: Range, in: header, schema: { type: string, example: bytes=0-1023 } }
+      responses:
+        '200': { description: Whole file }
+        '206': { description: Requested range }
+        '404': { $ref: '#/components/responses/Problem' }
+        '416': { description: Range not satisfiable }
 components:
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -296,11 +341,21 @@ components:
         expiresAt: { type: string, format: date-time }
     Institution:
       type: object
-      properties: { name: { type: string }, timezone: { type: string }, revision: { type: integer } }
+      properties: { name: { type: string }, timezone: { type: string }, logoAssetId: { type: [string, 'null'], format: uuid }, revision: { type: integer } }
     UpdateInstitution:
       type: object
       required: [name, timezone, expectedRevision]
-      properties: { name: { type: string }, timezone: { type: string }, expectedRevision: { type: integer } }
+      properties: { name: { type: string }, timezone: { type: string }, logoAssetId: { type: [string, 'null'], format: uuid }, expectedRevision: { type: integer } }
+    AssetPurpose: { type: string, enum: [VIDEO, DOCUMENT, BRANDING_IMAGE] }
+    Asset:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        purpose: { $ref: '#/components/schemas/AssetPurpose' }
+        filename: { type: string }
+        contentType: { type: string }
+        sizeBytes: { type: integer }
+        durationSeconds: { type: [integer, 'null'] }
     Notification:
       type: object
       properties:

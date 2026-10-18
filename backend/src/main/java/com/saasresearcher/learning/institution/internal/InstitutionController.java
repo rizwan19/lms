@@ -6,6 +6,7 @@ import com.saasresearcher.learning.institution.api.InstitutionProfile;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -30,16 +31,17 @@ class InstitutionController {
 
     @PutMapping
     InstitutionView update(@Valid @RequestBody UpdateInstitution command, Actor actor) {
-        return InstitutionView.of(institution.update(command.name(), Timezones.parse("timezone", command.timezone()), command.expectedRevision(), actor));
+        return InstitutionView.of(institution.update(command.name(), Timezones.parse("timezone", command.timezone()), command.logoAssetId(),
+                command.expectedRevision(), actor));
     }
 
-    record UpdateInstitution(@NotBlank @Size(max = 200) String name, @NotBlank String timezone, long expectedRevision) {
+    record UpdateInstitution(@NotBlank @Size(max = 200) String name, @NotBlank String timezone, UUID logoAssetId, long expectedRevision) {
     }
 
-    record InstitutionView(String name, String timezone, long revision) {
+    record InstitutionView(String name, String timezone, UUID logoAssetId, long revision) {
 
         static InstitutionView of(InstitutionProfile profile) {
-            return new InstitutionView(profile.name(), profile.timezone().getId(), profile.revision());
+            return new InstitutionView(profile.name(), profile.timezone().getId(), profile.logoAssetId(), profile.revision());
         }
     }
 }

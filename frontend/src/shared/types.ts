@@ -9,6 +9,6 @@ export type Me = {
   passwordChangeRequired: boolean
 }
 
-export type Institution = { name: string; timezone: string; revision: number }
+export type Institution = { name: string; timezone: string; logoAssetId: string | null; revision: number }
 
 export type TemporaryCredential = { username: string; temporaryPassword: string; expiresAt: string }

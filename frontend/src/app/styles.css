@@ -29,7 +29,10 @@ a { color: var(--primary); }
 .topbar nav { display: flex; flex-wrap: wrap; gap: 0.75rem; flex: 1; }
 .topbar nav a { text-decoration: none; padding: 0.25rem 0.5rem; border-radius: 4px; }
 .topbar nav a.active { background: #e6eefb; font-weight: 600; }
-.brand { margin-right: 1rem; }
+.brand { margin-right: 1rem; display: flex; align-items: center; gap: 0.5rem; }
+.brand img { height: 2rem; width: auto; }
+.logo-preview { max-height: 4rem; max-width: 12rem; border: 1px solid var(--border); }
+progress { width: 12rem; }
 .popover { position: relative; }
 .account-menu { margin-left: auto; }
 .popover summary { cursor: pointer; list-style: none; padding: 0.25rem 0.5rem; border: 1px solid var(--border); border-radius: 4px; }
