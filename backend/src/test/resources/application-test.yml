@@ -4,3 +4,13 @@ spring:
     url: jdbc:postgresql://unused/unused
     username: unused
     password: unused
+server:
+  servlet:
+    session:
+      cookie:
+        secure: false
+
+learning:
+  identity:
+    setup-token: test-setup-token
+    password-hash-strength: 4

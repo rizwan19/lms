@@ -18,10 +18,21 @@ spring:
   mvc:
     problemdetails:
       enabled: false
+  session:
+    jdbc:
+      initialize-schema: never
 
 server:
   port: ${LEARNING_PORT:8080}
   forward-headers-strategy: native
+  servlet:
+    session:
+      timeout: 60m
+      cookie:
+        name: LEARNING_SESSION
+        http-only: true
+        secure: ${LEARNING_SECURE_COOKIES:true}
+        same-site: lax
   error:
     include-stacktrace: never
     include-message: never
@@ -44,3 +55,7 @@ management:
 logging:
   pattern:
     correlation: "[%X{traceId:-}] "
+
+learning:
+  identity:
+    setup-token: ${LEARNING_SETUP_TOKEN:}

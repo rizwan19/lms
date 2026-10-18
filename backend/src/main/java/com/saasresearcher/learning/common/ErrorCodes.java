@@ -7,6 +7,7 @@ public final class ErrorCodes {
     public static final String ACCESS_DENIED = "ACCESS_DENIED";
     public static final String VALIDATION_FAILED = "VALIDATION_FAILED";
     public static final String REVISION_CONFLICT = "REVISION_CONFLICT";
+    public static final String DUPLICATE = "DUPLICATE";
     public static final String UNAUTHENTICATED = "UNAUTHENTICATED";
     public static final String REQUEST_REJECTED = "REQUEST_REJECTED";
     public static final String INTERNAL_ERROR = "INTERNAL_ERROR";

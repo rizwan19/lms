@@ -4,6 +4,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -30,6 +31,12 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(OptimisticLockingFailureException.class)
     ResponseEntity<ProblemDetail> handleOptimisticLock(OptimisticLockingFailureException ex) {
         return handleApi(ApiException.conflict(ErrorCodes.REVISION_CONFLICT, "The record was changed by another request; reload and retry"));
+    }
+
+    /** Unique-constraint races that slipped past service checks. */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ResponseEntity<ProblemDetail> handleIntegrity(DataIntegrityViolationException ex) {
+        return handleApi(ApiException.conflict(ErrorCodes.DUPLICATE, "The record conflicts with an existing record"));
     }
 
     @ExceptionHandler(Exception.class)

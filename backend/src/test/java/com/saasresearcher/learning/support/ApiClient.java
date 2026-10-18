@@ -109,5 +109,13 @@ public class ApiClient {
         public String code() {
             return json().path("code").asString();
         }
+
+        /** Fails fast with the response body when the status is unexpected. */
+        public ApiResponse expect(int expectedStatus) {
+            if (status != expectedStatus) {
+                throw new AssertionError("Expected HTTP " + expectedStatus + " but was " + status + ": " + text());
+            }
+            return this;
+        }
     }
 }

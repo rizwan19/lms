@@ -3,13 +3,165 @@ info:
   title: Learning Portal API
   version: 0.1.0
   description: |
-    Same-origin REST API under /api/v1. Errors use RFC 9457-style problem responses
-    {type,title,status,detail,code,fieldErrors,traceId}. Pages use {items,page,size,total}
-    with zero-based pages, default size 25 and maximum 100.
+    Same-origin REST API under /api/v1. Sessions are cookie-based (Spring Session JDBC); every
+    mutating request carries the CSRF token from GET /auth/csrf in the X-XSRF-TOKEN header.
+    Errors use RFC 9457-style problem responses {type,title,status,detail,code,fieldErrors,traceId}.
+    Pages use {items,page,size,total} with zero-based pages, default size 25 and maximum 100.
+    Unrelated or forbidden resources answer 404 so their existence is not exposed.
 servers:
   - url: /api/v1
-paths: {}
+tags:
+  - name: auth
+  - name: setup
+  - name: users
+  - name: institution
+paths:
+  /auth/csrf:
+    get:
+      tags: [auth]
+      summary: Issue the CSRF cookie and return the token
+      responses:
+        '200': { description: Token, content: { application/json: { schema: { $ref: '#/components/schemas/CsrfToken' } } } }
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Sign in with username (or email) and password; rotates session ID and CSRF token
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LoginRequest' } } } }
+      responses:
+        '200': { description: Signed in, content: { application/json: { schema: { $ref: '#/components/schemas/Me' } } } }
+        '401': { $ref: '#/components/responses/Problem' }
+        '429': { $ref: '#/components/responses/Problem' }
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Sign out and invalidate the session
+      x-security-filter: true
+      responses:
+        '204': { description: Signed out }
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Current account
+      responses:
+        '200': { description: Account, content: { application/json: { schema: { $ref: '#/components/schemas/Me' } } } }
+        '401': { $ref: '#/components/responses/Problem' }
+  /auth/me/password:
+    put:
+      tags: [auth]
+      summary: Change own password; revokes the account's other sessions
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ChangePassword' } } } }
+      responses:
+        '204': { description: Changed }
+        '400': { $ref: '#/components/responses/Problem' }
+  /auth/password-reset/request:
+    post:
+      tags: [auth]
+      summary: Request a reset email; always 202 so account existence is not revealed
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [usernameOrEmail], properties: { usernameOrEmail: { type: string } } } } } }
+      responses:
+        '202': { description: Accepted }
+  /auth/password-reset/confirm:
+    post:
+      tags: [auth]
+      summary: Set a new password with a 30-minute single-use token; revokes sessions
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TokenPassword' } } } }
+      responses:
+        '204': { description: Password set }
+        '400': { $ref: '#/components/responses/Problem' }
+  /auth/invitations/accept:
+    post:
+      tags: [auth]
+      summary: Set the first password with a 72-hour single-use invitation token
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TokenPassword' } } } }
+      responses:
+        '204': { description: Password set }
+        '400': { $ref: '#/components/responses/Problem' }
+  /setup:
+    get:
+      tags: [setup]
+      summary: Whether first-administrator setup is still required
+      responses:
+        '200': { description: Status, content: { application/json: { schema: { type: object, properties: { required: { type: boolean } } } } } }
+    post:
+      tags: [setup]
+      summary: One-use installation setup with the operator-supplied setup token
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SetupRequest' } } } }
+      responses:
+        '201': { description: Administrator created, content: { application/json: { schema: { $ref: '#/components/schemas/Me' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /users:
+    get:
+      tags: [users]
+      summary: Accounts in the caller's scope (administrators all; teachers their students)
+      parameters:
+        - { name: search, in: query, schema: { type: string } }
+        - { name: role, in: query, schema: { $ref: '#/components/schemas/Role' } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200': { description: Page of accounts, content: { application/json: { schema: { $ref: '#/components/schemas/AccountPage' } } } }
+    post:
+      tags: [users]
+      summary: Create an account; teachers may only create students. Response is no-store.
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateAccount' } } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/CreatedAccount' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+  /users/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [users]
+      summary: Account in scope
+      responses:
+        '200': { description: Account, content: { application/json: { schema: { $ref: '#/components/schemas/Account' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    put:
+      tags: [users]
+      summary: Administrator profile and role update with expected revision
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateAccount' } } } }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Account' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+  /users/{id}/status:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    put:
+      tags: [users]
+      summary: Enable or disable an account (administrator); disabling revokes sessions
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [status], properties: { status: { $ref: '#/components/schemas/AccountStatus' } } } } } }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Account' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+  /users/{id}/assisted-reset:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [users]
+      summary: Issue a 24-hour one-use temporary password; revokes sessions and forces a password change. No-store.
+      responses:
+        '200': { description: Temporary credential, content: { application/json: { schema: { $ref: '#/components/schemas/TemporaryCredential' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /institution:
+    get:
+      tags: [institution]
+      summary: Public institution name and timezone
+      responses:
+        '200': { description: Settings, content: { application/json: { schema: { $ref: '#/components/schemas/Institution' } } } }
+    put:
+      tags: [institution]
+      summary: Administrator settings update with expected revision
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateInstitution' } } } }
+      responses:
+        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Institution' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
 components:
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    Page: { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+    Size: { name: size, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+  responses:
+    Problem:
+      description: Problem response
+      content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } }
   schemas:
     Problem:
       type: object
@@ -21,3 +173,94 @@ components:
         code: { type: string }
         fieldErrors: { type: object, additionalProperties: { type: string } }
         traceId: { type: string }
+    Role: { type: string, enum: [ADMINISTRATOR, TEACHER, STUDENT] }
+    AccountStatus: { type: string, enum: [ACTIVE, DISABLED] }
+    CsrfToken:
+      type: object
+      properties: { headerName: { type: string }, token: { type: string } }
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties: { username: { type: string }, password: { type: string } }
+    ChangePassword:
+      type: object
+      required: [currentPassword, newPassword]
+      properties: { currentPassword: { type: string }, newPassword: { type: string, minLength: 12, maxLength: 128 } }
+    TokenPassword:
+      type: object
+      required: [token, password]
+      properties: { token: { type: string }, password: { type: string, minLength: 12, maxLength: 128 } }
+    SetupRequest:
+      type: object
+      required: [setupToken, institutionName, timezone, username, displayName, email, password]
+      properties:
+        setupToken: { type: string }
+        institutionName: { type: string, maxLength: 200 }
+        timezone: { type: string, example: Asia/Dhaka }
+        username: { type: string }
+        displayName: { type: string }
+        email: { type: string }
+        password: { type: string }
+    Me:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        displayName: { type: string }
+        email: { type: [string, 'null'] }
+        roles: { type: array, items: { $ref: '#/components/schemas/Role' } }
+        passwordChangeRequired: { type: boolean }
+    Account:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        username: { type: string }
+        displayName: { type: string }
+        email: { type: [string, 'null'] }
+        roles: { type: array, items: { $ref: '#/components/schemas/Role' } }
+        status: { $ref: '#/components/schemas/AccountStatus' }
+        createdAt: { type: string, format: date-time }
+        revision: { type: integer }
+    AccountPage:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Account' } }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer }
+    CreateAccount:
+      type: object
+      required: [username, displayName, roles, delivery]
+      properties:
+        username: { type: string, pattern: '^[A-Za-z0-9._-]{3,64}$' }
+        displayName: { type: string, maxLength: 150 }
+        email: { type: [string, 'null'], description: Optional for students; required for staff and invitations }
+        roles: { type: array, items: { $ref: '#/components/schemas/Role' } }
+        delivery: { type: string, enum: [INVITATION, TEMPORARY_PASSWORD] }
+    CreatedAccount:
+      type: object
+      properties:
+        account: { $ref: '#/components/schemas/Account' }
+        temporaryCredential: { oneOf: [{ $ref: '#/components/schemas/TemporaryCredential' }, { type: 'null' }] }
+        invitationExpiresAt: { type: [string, 'null'], format: date-time }
+    UpdateAccount:
+      type: object
+      required: [displayName, roles, expectedRevision]
+      properties:
+        displayName: { type: string }
+        email: { type: [string, 'null'] }
+        roles: { type: array, items: { $ref: '#/components/schemas/Role' } }
+        expectedRevision: { type: integer }
+    TemporaryCredential:
+      type: object
+      properties:
+        username: { type: string }
+        temporaryPassword: { type: string }
+        expiresAt: { type: string, format: date-time }
+    Institution:
+      type: object
+      properties: { name: { type: string }, timezone: { type: string }, revision: { type: integer } }
+    UpdateInstitution:
+      type: object
+      required: [name, timezone, expectedRevision]
+      properties: { name: { type: string }, timezone: { type: string }, expectedRevision: { type: integer } }

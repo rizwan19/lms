@@ -17,7 +17,10 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping;
 import org.yaml.snakeyaml.Yaml;
 
-/** Keeps docs/api/openapi.yaml synchronized with the registered REST routes. */
+/**
+ * Keeps docs/api/openapi.yaml synchronized with the registered REST routes. Operations handled by
+ * Spring Security filters rather than controllers are marked {@code x-security-filter: true}.
+ */
 class OpenApiContractIT extends PostgresIntegrationTest {
 
     private static final Set<String> HTTP_METHODS = Set.of("get", "post", "put", "patch", "delete");
@@ -47,9 +50,12 @@ class OpenApiContractIT extends PostgresIntegrationTest {
             Map<String, Object> document = new Yaml().load(input);
             Map<String, Map<String, Object>> paths = (Map<String, Map<String, Object>>) document.get("paths");
             if (paths != null) {
-                paths.forEach((path, operations) -> operations.keySet().stream()
-                        .filter(HTTP_METHODS::contains)
-                        .forEach(method -> routes.add(method.toUpperCase() + " " + path)));
+                paths.forEach((path, operations) -> operations.forEach((method, operation) -> {
+                    boolean servedByFilter = operation instanceof Map<?, ?> details && details.containsKey("x-security-filter");
+                    if (HTTP_METHODS.contains(method) && !servedByFilter) {
+                        routes.add(method.toUpperCase() + " " + path);
+                    }
+                }));
             }
         }
         return routes;

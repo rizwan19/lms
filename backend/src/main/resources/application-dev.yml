@@ -4,3 +4,13 @@ spring:
     url: jdbc:postgresql://localhost:5432/learning
     username: learning
     password: learning
+
+server:
+  servlet:
+    session:
+      cookie:
+        secure: false
+
+learning:
+  identity:
+    setup-token: dev-setup-token
