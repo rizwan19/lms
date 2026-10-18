@@ -19,6 +19,7 @@ tags:
   - name: operations
   - name: media
   - name: courses
+  - name: classes
 paths:
   /auth/csrf:
     get:
@@ -324,6 +325,109 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [teacherIds], properties: { teacherIds: { type: array, items: { type: string, format: uuid } } } } } } }
       responses:
         '200': { description: Course, content: { application/json: { schema: { $ref: '#/components/schemas/CourseDetail' } } } }
+  /classes:
+    get:
+      tags: [classes]
+      summary: Classes the caller teaches (administrators see all)
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200': { description: Page of classes, content: { application/json: { schema: { $ref: '#/components/schemas/ClassSummaryPage' } } } }
+    post:
+      tags: [classes]
+      summary: Create a DRAFT class for a published, non-archived edition (course teacher or administrator)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [courseVersionId, name]
+              properties:
+                courseVersionId: { type: string, format: uuid }
+                name: { type: string, maxLength: 200 }
+                startsAt: { type: [string, 'null'], format: date-time }
+                endsAt: { type: [string, 'null'], format: date-time }
+      responses:
+        '201': { description: Class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassDetail' } } } }
+  /classes/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [classes]
+      summary: Class detail (assigned class teacher or administrator)
+      responses:
+        '200': { description: Class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassDetail' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+    put:
+      tags: [classes]
+      summary: Rename or reschedule with expected revision (audited)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, expectedRevision]
+              properties:
+                name: { type: string }
+                startsAt: { type: [string, 'null'], format: date-time }
+                endsAt: { type: [string, 'null'], format: date-time }
+                expectedRevision: { type: integer }
+      responses:
+        '200': { description: Class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassDetail' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+  /classes/{id}/activate:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [classes]
+      summary: DRAFT → ACTIVE
+      responses:
+        '200': { description: Class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassDetail' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+  /classes/{id}/archive:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [classes]
+      summary: Archive; learning access ends, history stays readable
+      responses:
+        '200': { description: Class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassDetail' } } } }
+  /classes/{id}/teachers:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    put:
+      tags: [classes]
+      summary: Replace class teachers; removed teachers lose access on their next request
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [teacherIds], properties: { teacherIds: { type: array, items: { type: string, format: uuid } } } } } } }
+      responses:
+        '200': { description: Class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassDetail' } } } }
+  /classes/{id}/enrollments:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [classes]
+      summary: Class roster
+      parameters:
+        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, SUSPENDED, WITHDRAWN] } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200': { description: Page of roster rows, content: { application/json: { schema: { $ref: '#/components/schemas/RosterPage' } } } }
+    post:
+      tags: [classes]
+      summary: Enroll an existing active student by username (409 ALREADY_ENROLLED)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [username], properties: { username: { type: string } } } } } }
+      responses:
+        '201': { description: Enrollment, content: { application/json: { schema: { $ref: '#/components/schemas/RosterRow' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+  /classes/{id}/enrollments/{enrollmentId}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+      - { name: enrollmentId, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [classes]
+      summary: Activate, suspend or withdraw an enrollment
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [status], properties: { status: { type: string, enum: [ACTIVE, SUSPENDED, WITHDRAWN] } } } } } }
+      responses:
+        '200': { description: Enrollment, content: { application/json: { schema: { $ref: '#/components/schemas/RosterRow' } } } }
 components:
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -581,3 +685,50 @@ components:
         title: { type: string }
         description: { type: string }
         sections: { type: array, items: { $ref: '#/components/schemas/CourseSection' } }
+    ClassSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        status: { type: string, enum: [DRAFT, ACTIVE, ARCHIVED] }
+        courseTitle: { type: string }
+        edition: { type: integer }
+        startsAt: { type: [string, 'null'], format: date-time }
+        endsAt: { type: [string, 'null'], format: date-time }
+    ClassSummaryPage:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ClassSummary' } }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer }
+    ClassDetail:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        status: { type: string, enum: [DRAFT, ACTIVE, ARCHIVED] }
+        courseId: { type: string, format: uuid }
+        courseVersionId: { type: string, format: uuid }
+        courseTitle: { type: string }
+        edition: { type: integer }
+        startsAt: { type: [string, 'null'], format: date-time }
+        endsAt: { type: [string, 'null'], format: date-time }
+        teachers: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, displayName: { type: string } } } }
+        revision: { type: integer }
+    RosterRow:
+      type: object
+      properties:
+        enrollmentId: { type: string, format: uuid }
+        studentId: { type: string, format: uuid }
+        username: { type: string }
+        displayName: { type: string }
+        status: { type: string, enum: [ACTIVE, SUSPENDED, WITHDRAWN] }
+        enrolledAt: { type: string, format: date-time }
+    RosterPage:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/RosterRow' } }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer }
