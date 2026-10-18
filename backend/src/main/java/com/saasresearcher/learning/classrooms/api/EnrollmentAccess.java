@@ -19,4 +19,7 @@ public interface EnrollmentAccess {
     StudentEnrollment requireOwn(UUID enrollmentId, Actor actor);
 
     List<StudentEnrollment> enrollmentsOf(UUID studentId);
+
+    /** System lookup without an actor, for internal read models such as progress summaries. */
+    EnrollmentView require(UUID enrollmentId);
 }

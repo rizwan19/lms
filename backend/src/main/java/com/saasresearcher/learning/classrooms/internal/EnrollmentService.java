@@ -130,6 +130,13 @@ class EnrollmentService implements EnrollmentAccess {
         return own.stream().map(enrollment -> toStudentEnrollment(enrollment, byId.get(enrollment.classId()))).toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public EnrollmentView require(UUID enrollmentId) {
+        Enrollment enrollment = enrollments.findById(enrollmentId).orElseThrow(ApiException::notFound);
+        return enrollment.toView(classes.findById(enrollment.classId()).orElseThrow().courseVersionId());
+    }
+
     private EnrollmentView requireUsable(Optional<Enrollment> found, Actor actor) {
         Enrollment enrollment = found.filter(candidate -> candidate.studentId().equals(actor.userId())).orElseThrow(ApiException::notFound);
         Classroom classroom = classes.findById(enrollment.classId()).orElseThrow();

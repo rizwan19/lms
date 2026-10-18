@@ -20,6 +20,7 @@ tags:
   - name: media
   - name: courses
   - name: classes
+  - name: learning
 paths:
   /auth/csrf:
     get:
@@ -467,6 +468,72 @@ paths:
                   credentials: { type: array, items: { $ref: '#/components/schemas/TemporaryCredential' } }
         '409': { $ref: '#/components/responses/Problem' }
         '422': { $ref: '#/components/responses/Problem' }
+  /me/learning:
+    get:
+      tags: [learning]
+      summary: Own enrollments with progress, including historical ones
+      responses:
+        '200':
+          description: Dashboard
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    enrollmentId: { type: string, format: uuid }
+                    className: { type: string }
+                    courseTitle: { type: string }
+                    edition: { type: integer }
+                    enrollmentStatus: { type: string, enum: [ACTIVE, SUSPENDED, WITHDRAWN] }
+                    classStatus: { type: string, enum: [DRAFT, ACTIVE, ARCHIVED] }
+                    accessOpen: { type: boolean }
+                    startsAt: { type: [string, 'null'], format: date-time }
+                    endsAt: { type: [string, 'null'], format: date-time }
+                    summary: { $ref: '#/components/schemas/LessonSummary' }
+  /me/enrollments/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [learning]
+      summary: Course player for an own active enrollment in an open class (403 ENROLLMENT_INACTIVE otherwise)
+      responses:
+        '200':
+          description: Player
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enrollmentId: { type: string, format: uuid }
+                  className: { type: string }
+                  course: { $ref: '#/components/schemas/PublishedCourse' }
+                  progress: { type: array, items: { $ref: '#/components/schemas/LessonProgress' } }
+                  summary: { $ref: '#/components/schemas/LessonSummary' }
+        '403': { $ref: '#/components/responses/Problem' }
+        '404': { $ref: '#/components/responses/Problem' }
+  /enrollments/{id}/lessons/{lessonId}/progress:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+      - { name: lessonId, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [learning]
+      summary: Save explicit completion and resume position with expected revision (0 creates); resume never decreases
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedRevision, completed, resumeSeconds]
+              properties:
+                expectedRevision: { type: integer }
+                completed: { type: boolean }
+                resumeSeconds: { type: integer, minimum: 0 }
+      responses:
+        '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/LessonProgress' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
 components:
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -789,3 +856,18 @@ components:
         existingStudents: { type: integer }
         invalidRows: { type: integer }
         digest: { type: string }
+    LessonSummary:
+      type: object
+      properties:
+        required: { type: integer }
+        completed: { type: integer }
+        lastActivityAt: { type: [string, 'null'], format: date-time }
+    LessonProgress:
+      type: object
+      properties:
+        lessonId: { type: string, format: uuid }
+        completed: { type: boolean }
+        completedAt: { type: [string, 'null'], format: date-time }
+        resumeSeconds: { type: integer }
+        revision: { type: integer }
+        lastActivityAt: { type: string, format: date-time }

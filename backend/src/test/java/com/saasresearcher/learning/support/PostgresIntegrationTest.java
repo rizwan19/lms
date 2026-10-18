@@ -19,7 +19,7 @@ import com.saasresearcher.learning.support.TestJobsConfiguration.RecordingJobHan
  * Every test starts from an empty installation (all tables truncated) with a reset clock.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "management.server.port=0")
-@Import({TestInfrastructure.class, TestClockConfiguration.class, TestJobsConfiguration.class})
+@Import({TestInfrastructure.class, TestClockConfiguration.class, TestJobsConfiguration.class, RecordingProgressObserver.class})
 @ActiveProfiles("test")
 public abstract class PostgresIntegrationTest {
 
@@ -46,11 +46,15 @@ public abstract class PostgresIntegrationTest {
     @Autowired
     protected RecordingJobHandler recordingJobs;
 
+    @Autowired
+    protected RecordingProgressObserver progressObserver;
+
     @BeforeEach
     void resetInstallation() {
         clock.reset();
         email.reset();
         recordingJobs.reset();
+        progressObserver.reset();
         List<String> tables = jdbc.sql("select tablename from pg_tables where schemaname = 'public'")
                 .query(String.class).list().stream()
                 .filter(table -> !PRESERVED_TABLES.contains(table))

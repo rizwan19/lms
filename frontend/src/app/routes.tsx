@@ -14,6 +14,8 @@ import { CourseEditorPage } from '../features/courses/CourseEditorPage'
 import { CoursePreviewPage } from '../features/courses/CoursePreviewPage'
 import { ClassListPage } from '../features/classrooms/ClassListPage'
 import { ClassDetailPage } from '../features/classrooms/ClassDetailPage'
+import { StudentDashboardPage } from '../features/learning/StudentDashboardPage'
+import { CoursePlayerPage } from '../features/learning/CoursePlayerPage'
 
 function Home() {
   const { activeRole } = useSession()
@@ -40,6 +42,8 @@ export const routes: RouteObject[] = [
       { path: '/teacher/courses/:id/preview', element: <RequireAuth roles={STAFF}><CoursePreviewPage /></RequireAuth> },
       { path: '/teacher/classes', element: <RequireAuth roles={STAFF}><ClassListPage /></RequireAuth> },
       { path: '/teacher/classes/:id', element: <RequireAuth roles={STAFF}><ClassDetailPage /></RequireAuth> },
+      { path: '/student', element: <RequireAuth roles={['STUDENT']}><StudentDashboardPage /></RequireAuth> },
+      { path: '/student/enrollments/:id', element: <RequireAuth roles={['STUDENT']}><CoursePlayerPage /></RequireAuth> },
       { path: '*', element: <p>Page not found.</p> },
     ],
   },
