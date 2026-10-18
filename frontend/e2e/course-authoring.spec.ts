@@ -56,7 +56,7 @@ test('teacher authors, previews and publishes video, PDF and text lessons, then 
 
   await page.getByRole('link', { name: 'Back to editor' }).click()
   await page.getByRole('button', { name: 'Publish edition' }).click()
-  await expect(page.getByRole('status')).toHaveText('Published edition 1.')
+  await expect(page.getByRole('status').filter({ hasText: 'Published edition 1.' })).toBeVisible()
 
   await page.reload()
   await page.getByRole('button', { name: 'Start new draft from edition 1' }).click()
@@ -65,7 +65,7 @@ test('teacher authors, previews and publishes video, PDF and text lessons, then 
   await page.getByRole('button', { name: 'Save draft' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Draft saved.' })).toBeVisible()
   await page.getByRole('button', { name: 'Publish edition' }).click()
-  await expect(page.getByRole('status')).toHaveText('Published edition 2.')
+  await expect(page.getByRole('status').filter({ hasText: 'Published edition 2.' })).toBeVisible()
 
   await page.reload()
   await page.getByRole('link', { name: 'Preview edition 1' }).click()

@@ -10,6 +10,7 @@ import type { CourseDetail, Draft, PublishedEdition } from './types'
 export function CourseEditorPage() {
   const { id = '' } = useParams()
   const course = useQuery({ queryKey: ['course', id], queryFn: () => api.get<CourseDetail>(`/courses/${id}`) })
+  const [published, setPublished] = useState<number | null>(null)
 
   return (
     <QueryState query={course}>
@@ -19,18 +20,26 @@ export function CourseEditorPage() {
             <h1>{detail.title}</h1>
             <Link to={`/teacher/courses/${id}/preview`}>Preview</Link>
           </div>
-          {detail.draft ? <DraftLoader courseId={id} /> : <Editions course={detail} />}
+          {published && (
+            <p className="notice" role="status">
+              Published edition {published}.
+            </p>
+          )}
+          {detail.draft ? <DraftLoader courseId={id} onPublished={setPublished} /> : <Editions course={detail} onStarted={() => setPublished(null)} />}
         </section>
       )}
     </QueryState>
   )
 }
 
-function Editions({ course }: { course: CourseDetail }) {
+function Editions({ course, onStarted }: { course: CourseDetail; onStarted: () => void }) {
   const queryClient = useQueryClient()
   const start = useMutation({
     mutationFn: (versionId: string) => api.post<Draft>(`/courses/${course.id}/draft`, { fromVersionId: versionId }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['course', course.id] }),
+    onSuccess: () => {
+      onStarted()
+      return queryClient.invalidateQueries({ queryKey: ['course', course.id] })
+    },
   })
   return (
     <div className="card">
@@ -54,9 +63,9 @@ function Editions({ course }: { course: CourseDetail }) {
   )
 }
 
-function DraftLoader({ courseId }: { courseId: string }) {
+function DraftLoader({ courseId, onPublished }: { courseId: string; onPublished: (edition: number) => void }) {
   const draft = useQuery({ queryKey: ['course', courseId, 'draft'], queryFn: () => api.get<Draft>(`/courses/${courseId}/draft`) })
-  return <QueryState query={draft}>{(loaded) => <DraftEditor key={loaded.versionId} draft={loaded} />}</QueryState>
+  return <QueryState query={draft}>{(loaded) => <DraftEditor key={loaded.versionId} draft={loaded} onPublished={onPublished} />}</QueryState>
 }
 
 /** Prefix-scoped view of server field errors, e.g. "sections[0].lessons[1]." */
@@ -64,12 +73,11 @@ function scoped(errors: FieldErrors, prefix: string): FieldErrors {
   return Object.fromEntries(Object.entries(errors).filter(([key]) => key.startsWith(prefix)).map(([key, value]) => [key.slice(prefix.length), value]))
 }
 
-function DraftEditor({ draft }: { draft: Draft }) {
+function DraftEditor({ draft, onPublished }: { draft: Draft; onPublished: (edition: number) => void }) {
   const queryClient = useQueryClient()
   const [state, setState] = useState<DraftState>(() => fromServer(draft))
   const [revision, setRevision] = useState(draft.revision)
   const [dirty, setDirty] = useState(false)
-  const [published, setPublished] = useState<number | null>(null)
 
   const save = useMutation({
     mutationFn: () => api.put<Draft>(`/courses/${draft.courseId}/draft`, toPayload(state, revision)),
@@ -82,9 +90,9 @@ function DraftEditor({ draft }: { draft: Draft }) {
   })
   const publish = useMutation({
     mutationFn: () => api.post<PublishedEdition>(`/courses/${draft.courseId}/publish`, { expectedRevision: revision }),
-    onSuccess: async (edition) => {
-      setPublished(edition.edition)
-      await queryClient.invalidateQueries({ queryKey: ['course', draft.courseId] })
+    onSuccess: (edition) => {
+      onPublished(edition.edition)
+      queryClient.invalidateQueries({ queryKey: ['course', draft.courseId] })
       queryClient.invalidateQueries({ queryKey: ['courses'] })
     },
   })
@@ -98,14 +106,6 @@ function DraftEditor({ draft }: { draft: Draft }) {
     update({ ...state, sections: state.sections.map((section, i) => (i === index ? { ...section, ...patch } : section)) })
   const updateLesson = (s: number, l: number, patch: Partial<LessonDraft>) =>
     updateSection(s, { lessons: state.sections[s].lessons.map((lesson, i) => (i === l ? { ...lesson, ...patch } : lesson)) })
-
-  if (published) {
-    return (
-      <p className="notice" role="status">
-        Published edition {published}.
-      </p>
-    )
-  }
 
   return (
     <form
