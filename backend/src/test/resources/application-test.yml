@@ -1,0 +1,6 @@
+# Connection details come from Testcontainers; these only satisfy required placeholders.
+spring:
+  datasource:
+    url: jdbc:postgresql://unused/unused
+    username: unused
+    password: unused

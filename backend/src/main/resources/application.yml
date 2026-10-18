@@ -1,0 +1,46 @@
+spring:
+  application:
+    name: learning-portal
+  datasource:
+    url: ${LEARNING_DB_URL}
+    username: ${LEARNING_DB_USERNAME}
+    password: ${LEARNING_DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    locations: classpath:db/migration
+  jackson:
+    time-zone: UTC
+  mvc:
+    problemdetails:
+      enabled: false
+
+server:
+  port: ${LEARNING_PORT:8080}
+  forward-headers-strategy: native
+  error:
+    include-stacktrace: never
+    include-message: never
+
+management:
+  server:
+    port: ${LEARNING_MANAGEMENT_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+
+logging:
+  pattern:
+    correlation: "[%X{traceId:-}] "

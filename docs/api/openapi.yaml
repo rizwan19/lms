@@ -1,0 +1,23 @@
+openapi: 3.1.0
+info:
+  title: Learning Portal API
+  version: 0.1.0
+  description: |
+    Same-origin REST API under /api/v1. Errors use RFC 9457-style problem responses
+    {type,title,status,detail,code,fieldErrors,traceId}. Pages use {items,page,size,total}
+    with zero-based pages, default size 25 and maximum 100.
+servers:
+  - url: /api/v1
+paths: {}
+components:
+  schemas:
+    Problem:
+      type: object
+      properties:
+        type: { type: string }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string }
+        fieldErrors: { type: object, additionalProperties: { type: string } }
+        traceId: { type: string }

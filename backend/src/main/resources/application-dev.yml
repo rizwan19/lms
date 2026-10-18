@@ -1,0 +1,6 @@
+# Local development defaults. Start PostgreSQL with: docker compose -f deploy/compose.yml up -d postgres
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/learning
+    username: learning
+    password: learning
