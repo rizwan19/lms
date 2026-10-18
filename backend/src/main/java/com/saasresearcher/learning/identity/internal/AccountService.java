@@ -1,5 +1,7 @@
 package com.saasresearcher.learning.identity.internal;
 
+import com.saasresearcher.learning.audit.api.AuditEntry;
+import com.saasresearcher.learning.audit.api.AuditLog;
 import com.saasresearcher.learning.common.Actor;
 import com.saasresearcher.learning.common.ApiException;
 import com.saasresearcher.learning.common.ErrorCodes;
@@ -10,6 +12,7 @@ import com.saasresearcher.learning.identity.api.AccountStatus;
 import com.saasresearcher.learning.identity.api.AccountSummary;
 import com.saasresearcher.learning.identity.api.IdentityAccess;
 import com.saasresearcher.learning.identity.api.TemporaryCredential;
+import com.saasresearcher.learning.notifications.api.EmailSender;
 import jakarta.persistence.criteria.Predicate;
 import java.time.Clock;
 import java.time.Instant;
@@ -36,14 +39,18 @@ class AccountService implements IdentityAccess {
     private final AccountAuthorization authorization;
     private final CredentialIssuer credentials;
     private final SessionRevocation sessions;
+    private final EmailSender email;
+    private final AuditLog audit;
     private final Clock clock;
 
     AccountService(UserAccountRepository accounts, AccountAuthorization authorization, CredentialIssuer credentials,
-            SessionRevocation sessions, Clock clock) {
+            SessionRevocation sessions, EmailSender email, AuditLog audit, Clock clock) {
         this.accounts = accounts;
         this.authorization = authorization;
         this.credentials = credentials;
         this.sessions = sessions;
+        this.email = email;
+        this.audit = audit;
         this.clock = clock;
     }
 
@@ -91,12 +98,17 @@ class AccountService implements IdentityAccess {
             if (email == null) {
                 throw ApiException.invalid("email", "An invitation needs an email address");
             }
+            if (!this.email.isConfigured()) {
+                throw ApiException.conflict(IdentityErrors.EMAIL_NOT_CONFIGURED, "Email is not configured; use a temporary password instead");
+            }
             accounts.save(account);
-            invitationExpiresAt = credentials.issueInvitation(account).expiresAt();
+            invitationExpiresAt = credentials.issueInvitation(account);
         } else {
             credential = credentials.issueTemporaryPassword(account);
             accounts.save(account);
         }
+        audit.record(AuditEntry.success(actor.userId(), "account.created", "user", account.id(),
+                Map.of("roles", roles, "delivery", command.delivery())));
         return new CreatedAccount(account, credential, invitationExpiresAt);
     }
 
@@ -114,6 +126,7 @@ class AccountService implements IdentityAccess {
         }
         account.updateProfile(AccountRules.displayName(changes.displayName()), email, roles, clock.instant());
         accounts.flush();
+        audit.record(AuditEntry.success(actor.userId(), "account.updated", "user", account.id(), Map.of("roles", roles)));
         return account;
     }
 
@@ -129,6 +142,7 @@ class AccountService implements IdentityAccess {
         }
         account.setStatus(status, clock.instant());
         accounts.flush();
+        audit.record(AuditEntry.success(actor.userId(), "account.status-changed", "user", account.id(), Map.of("status", status)));
         return account;
     }
 

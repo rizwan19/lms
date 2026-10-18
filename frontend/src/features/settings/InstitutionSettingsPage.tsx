@@ -3,6 +3,7 @@ import { api } from '../../shared/api'
 import type { Institution } from '../../shared/types'
 import { ErrorMessage, Field, QueryState, fieldErrors } from '../../shared/ui'
 import { TimezoneSelect } from './TimezoneSelect'
+import { SystemStatusPanel } from '../operations/SystemStatusPanel'
 
 export function InstitutionSettingsPage() {
   const queryClient = useQueryClient()
@@ -40,6 +41,7 @@ export function InstitutionSettingsPage() {
           </form>
         )}
       </QueryState>
+      <SystemStatusPanel />
     </section>
   )
 }

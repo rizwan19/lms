@@ -12,6 +12,7 @@ final class IdentityErrors {
     static final String SETUP_TOKEN_INVALID = "SETUP_TOKEN_INVALID";
     static final String PASSWORD_CHANGE_REQUIRED = "PASSWORD_CHANGE_REQUIRED";
     static final String CSRF_REJECTED = "CSRF_REJECTED";
+    static final String EMAIL_NOT_CONFIGURED = "EMAIL_NOT_CONFIGURED";
 
     private IdentityErrors() {
     }

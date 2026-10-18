@@ -1,0 +1,4 @@
+# Playwright runs (TestLearningPortalApplication): real clock and live job polling.
+learning:
+  jobs:
+    enabled: true

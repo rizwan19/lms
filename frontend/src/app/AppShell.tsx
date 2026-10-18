@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { api } from '../shared/api'
 import type { Institution, Role } from '../shared/types'
 import { homePath, useSession } from './session'
+import { NotificationList } from '../features/notifications/NotificationList'
 
 const ROLE_LABELS: Record<Role, string> = { ADMINISTRATOR: 'Administrator', TEACHER: 'Teacher', STUDENT: 'Student' }
 
@@ -41,8 +42,9 @@ export function AppShell() {
             ))}
           </nav>
         )}
+        {me && !me.passwordChangeRequired && <NotificationList />}
         {me && (
-          <details className="account-menu">
+          <details className="popover account-menu">
             <summary>{me.displayName}</summary>
             <div className="menu">
               {me.roles.length > 1 && (

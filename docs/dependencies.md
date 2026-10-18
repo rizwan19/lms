@@ -22,6 +22,7 @@ explicitly versioned libraries are pinned in `backend/pom.xml`. Frontend version
 | Spring Framework (webmvc) | 7.0.9 | Apache-2.0 |
 | Spring Security | 7.1.1 | Apache-2.0 |
 | Spring Session JDBC | 4.1.1 | Apache-2.0 |
+| Spring Boot Mail (Jakarta Mail via BOM) | 4.1.1 | Apache-2.0 / EPL-2.0 |
 | Hibernate ORM | 7.4.5.Final | Apache-2.0 |
 | Flyway (core, database-postgresql) | 12.4.0 | Apache-2.0 |
 | Jackson databind | 3.1.5 | Apache-2.0 |

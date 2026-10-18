@@ -1,8 +1,11 @@
 package com.saasresearcher.learning.identity.internal;
 
+import com.saasresearcher.learning.audit.api.AuditEntry;
+import com.saasresearcher.learning.audit.api.AuditLog;
 import com.saasresearcher.learning.common.Actor;
 import com.saasresearcher.learning.common.ApiException;
 import com.saasresearcher.learning.identity.api.TemporaryCredential;
+import com.saasresearcher.learning.notifications.api.EmailSender;
 import java.time.Clock;
 import java.util.Locale;
 import java.util.Optional;
@@ -20,12 +23,14 @@ class AccountRecoveryService {
     private final CredentialIssuer credentials;
     private final SessionRevocation sessions;
     private final AuthRateLimiter rateLimiter;
+    private final EmailSender email;
+    private final AuditLog audit;
     private final IdentityProperties properties;
     private final Clock clock;
 
     AccountRecoveryService(UserAccountRepository accounts, InvitationRepository invitations, PasswordResetTokenRepository resetTokens,
             AccountAuthorization authorization, CredentialIssuer credentials, SessionRevocation sessions,
-            AuthRateLimiter rateLimiter, IdentityProperties properties, Clock clock) {
+            AuthRateLimiter rateLimiter, EmailSender email, AuditLog audit, IdentityProperties properties, Clock clock) {
         this.accounts = accounts;
         this.invitations = invitations;
         this.resetTokens = resetTokens;
@@ -33,6 +38,8 @@ class AccountRecoveryService {
         this.credentials = credentials;
         this.sessions = sessions;
         this.rateLimiter = rateLimiter;
+        this.email = email;
+        this.audit = audit;
         this.properties = properties;
         this.clock = clock;
     }
@@ -47,6 +54,7 @@ class AccountRecoveryService {
         }
         TemporaryCredential credential = credentials.issueTemporaryPassword(account);
         sessions.revokeAfterCommit(account.id());
+        audit.record(AuditEntry.success(actor.userId(), "account.assisted-reset", "user", account.id()));
         return credential;
     }
 
@@ -56,7 +64,7 @@ class AccountRecoveryService {
         String normalized = identifier == null ? "" : identifier.trim().toLowerCase(Locale.ROOT);
         String ipBucket = "reset-ip:" + clientIp;
         String accountBucket = "reset:" + normalized;
-        if (rateLimiter.exceeded(ipBucket, properties.loginAttemptsPerIp())
+        if (!email.isConfigured() || rateLimiter.exceeded(ipBucket, properties.loginAttemptsPerIp())
                 || rateLimiter.exceeded(accountBucket, properties.loginAttemptsPerAccount())) {
             return;
         }
@@ -72,11 +80,13 @@ class AccountRecoveryService {
     void confirmPasswordReset(String token, String newPassword) {
         UserAccount account = redeem(resetTokens, token, newPassword);
         sessions.revokeAfterCommit(account.id());
+        audit.record(AuditEntry.success(account.id(), "password.reset", "user", account.id()));
     }
 
     @Transactional
     void acceptInvitation(String token, String password) {
-        redeem(invitations, token, password);
+        UserAccount account = redeem(invitations, token, password);
+        audit.record(AuditEntry.success(account.id(), "invitation.accepted", "user", account.id()));
     }
 
     @Transactional
@@ -91,6 +101,7 @@ class AccountRecoveryService {
         }
         credentials.setPassword(account, newPassword);
         sessions.revokeAfterCommit(account.id(), currentSessionId);
+        audit.record(AuditEntry.success(account.id(), "password.changed", "user", account.id()));
     }
 
     private <T extends OneTimeToken> UserAccount redeem(OneTimeTokenRepository<T> repository, String token, String password) {

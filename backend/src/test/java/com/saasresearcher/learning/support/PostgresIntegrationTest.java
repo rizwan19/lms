@@ -11,13 +11,15 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.ActiveProfiles;
+import com.saasresearcher.learning.support.TestJobsConfiguration.CapturingEmailSender;
+import com.saasresearcher.learning.support.TestJobsConfiguration.RecordingJobHandler;
 
 /**
  * Boots the full application on a random port against a disposable PostgreSQL 17 container.
  * Every test starts from an empty installation (all tables truncated) with a reset clock.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = "management.server.port=0")
-@Import({TestInfrastructure.class, TestClockConfiguration.class})
+@Import({TestInfrastructure.class, TestClockConfiguration.class, TestJobsConfiguration.class})
 @ActiveProfiles("test")
 public abstract class PostgresIntegrationTest {
 
@@ -38,9 +40,17 @@ public abstract class PostgresIntegrationTest {
     @Autowired
     protected JdbcClient jdbc;
 
+    @Autowired
+    protected CapturingEmailSender email;
+
+    @Autowired
+    protected RecordingJobHandler recordingJobs;
+
     @BeforeEach
     void resetInstallation() {
         clock.reset();
+        email.reset();
+        recordingJobs.reset();
         List<String> tables = jdbc.sql("select tablename from pg_tables where schemaname = 'public'")
                 .query(String.class).list().stream()
                 .filter(table -> !PRESERVED_TABLES.contains(table))

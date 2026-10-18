@@ -11,6 +11,9 @@ server:
         secure: false
 
 learning:
+  public-origin: http://localhost:5173
+  jobs:
+    enabled: false
   identity:
     setup-token: test-setup-token
     password-hash-strength: 4

@@ -47,6 +47,15 @@ abstract class OneTimeToken {
         this.usedAt = now;
     }
 
+    /** Replaces the stored hash so only the most recently delivered link works. */
+    void rotate(String newTokenHash) {
+        this.tokenHash = newTokenHash;
+    }
+
+    UUID id() {
+        return id;
+    }
+
     UUID userId() {
         return userId;
     }

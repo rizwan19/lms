@@ -15,6 +15,8 @@ tags:
   - name: setup
   - name: users
   - name: institution
+  - name: notifications
+  - name: operations
 paths:
   /auth/csrf:
     get:
@@ -153,6 +155,41 @@ paths:
       responses:
         '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Institution' } } } }
         '409': { $ref: '#/components/responses/Problem' }
+  /notifications:
+    get:
+      tags: [notifications]
+      summary: Own in-app notifications, newest first
+      parameters:
+        - { name: unreadOnly, in: query, schema: { type: boolean, default: false } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200': { description: Page of notifications, content: { application/json: { schema: { $ref: '#/components/schemas/NotificationPage' } } } }
+  /notifications/{id}/read:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    put:
+      tags: [notifications]
+      summary: Mark an own notification read (idempotent)
+      responses:
+        '204': { description: Marked read }
+        '404': { $ref: '#/components/responses/Problem' }
+  /admin/system-status:
+    get:
+      tags: [operations]
+      summary: Administrator delivery health
+      responses:
+        '200':
+          description: Status
+          content: { application/json: { schema: { type: object, properties: { emailConfigured: { type: boolean }, failedJobs: { type: integer } } } } }
+  /admin/failed-jobs:
+    get:
+      tags: [operations]
+      summary: Terminally failed background jobs (administrator)
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200': { description: Page of failed jobs, content: { application/json: { schema: { $ref: '#/components/schemas/FailedJobPage' } } } }
 components:
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -264,3 +301,36 @@ components:
       type: object
       required: [name, timezone, expectedRevision]
       properties: { name: { type: string }, timezone: { type: string }, expectedRevision: { type: integer } }
+    Notification:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        title: { type: string }
+        body: { type: string }
+        link: { type: [string, 'null'] }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: [string, 'null'], format: date-time }
+    NotificationPage:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Notification' } }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer }
+    FailedJob:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { type: string }
+        aggregateId: { type: [string, 'null'], format: uuid }
+        attempts: { type: integer }
+        lastError: { type: [string, 'null'] }
+        failedAt: { type: string, format: date-time }
+    FailedJobPage:
+      type: object
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/FailedJob' } }
+        page: { type: integer }
+        size: { type: integer }
+        total: { type: integer }

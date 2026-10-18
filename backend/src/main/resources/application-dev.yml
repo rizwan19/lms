@@ -12,5 +12,6 @@ server:
         secure: false
 
 learning:
+  public-origin: http://localhost:5173
   identity:
     setup-token: dev-setup-token
