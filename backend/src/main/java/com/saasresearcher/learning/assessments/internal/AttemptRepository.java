@@ -154,6 +154,15 @@ class AttemptRepository {
                 .update();
     }
 
+    /** A finalized attempt whose result is not published yet. */
+    boolean anyUnpublished(UUID enrollmentId, UUID assignmentId) {
+        return jdbc.sql("""
+                select count(*) > 0 from exam_attempts where enrollment_id = :enrollment and assignment_id = :assignment
+                    and status <> 'IN_PROGRESS' and published_at is null
+                """)
+                .param("enrollment", enrollmentId).param("assignment", assignmentId).query(Boolean.class).single();
+    }
+
     boolean anyPublishedPass(UUID enrollmentId, UUID assignmentId) {
         return jdbc.sql("select count(*) > 0 from exam_attempts where enrollment_id = :enrollment and assignment_id = :assignment and published_passed")
                 .param("enrollment", enrollmentId).param("assignment", assignmentId).query(Boolean.class).single();

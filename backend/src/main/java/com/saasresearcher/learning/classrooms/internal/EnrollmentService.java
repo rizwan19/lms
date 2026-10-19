@@ -144,6 +144,18 @@ class EnrollmentService implements EnrollmentAccess {
         return enrollment.toView(classes.findById(enrollment.classId()).orElseThrow().courseVersionId());
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isLearningLocked(UUID enrollmentId) {
+        return enrollments.findById(enrollmentId).map(Enrollment::learningLocked).orElse(false);
+    }
+
+    @Override
+    @Transactional
+    public void lockLearning(UUID enrollmentId) {
+        enrollments.findById(enrollmentId).orElseThrow(ApiException::notFound).lockLearning();
+    }
+
     private EnrollmentView requireUsable(Optional<Enrollment> found, Actor actor) {
         Enrollment enrollment = found.filter(candidate -> candidate.studentId().equals(actor.userId())).orElseThrow(ApiException::notFound);
         Classroom classroom = classes.findById(enrollment.classId()).orElseThrow();

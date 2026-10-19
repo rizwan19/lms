@@ -103,7 +103,8 @@ class AttemptResultsService implements AttemptResults, AssessmentResults {
         UUID classId = enrollments.require(enrollmentId).classId();
         return assignments.forClass(classId).stream()
                 .filter(AssignmentRow::required)
-                .map(assignment -> new RequiredExamResult(assignment.id(), attempts.anyPublishedPass(enrollmentId, assignment.id())))
+                .map(assignment -> new RequiredExamResult(assignment.id(), exams.findVersion(assignment.examVersionId()).orElseThrow().title(),
+                        attempts.anyPublishedPass(enrollmentId, assignment.id()), attempts.anyUnpublished(enrollmentId, assignment.id())))
                 .toList();
     }
 }

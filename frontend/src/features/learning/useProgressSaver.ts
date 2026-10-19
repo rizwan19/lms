@@ -37,6 +37,7 @@ export function useProgressSaver(enrollmentId: string) {
         player && { ...player, progress: [...player.progress.filter((record) => record.lessonId !== saved.lessonId), saved] },
       )
       queryClient.invalidateQueries({ queryKey: ['me', 'learning'] })
+      queryClient.invalidateQueries({ queryKey: ['completion', enrollmentId] })
     },
     onError: (error) => {
       if (error instanceof ApiError && error.code === 'PROGRESS_REVISION_CONFLICT') queryClient.invalidateQueries({ queryKey: key })

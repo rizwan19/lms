@@ -750,6 +750,24 @@ paths:
       responses:
         '200': { description: Result }
         '404': { $ref: '#/components/responses/Problem' }
+  /me/enrollments/{id}/completion:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [learning]
+      summary: Own completion status with lesson and required-exam requirements (pending grading shown explicitly)
+      responses:
+        '200':
+          description: Completion state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enrollmentId: { type: string, format: uuid }
+                  status: { type: string, enum: [NOT_ELIGIBLE, ACHIEVED, INVALIDATED] }
+                  completionId: { type: [string, 'null'], format: uuid }
+                  lessons: { $ref: '#/components/schemas/LessonSummary' }
+                  exams: { type: array, items: { type: object, properties: { assignmentId: { type: string, format: uuid }, title: { type: string }, publishedPass: { type: boolean }, pendingGrading: { type: boolean } } } }
 components:
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }

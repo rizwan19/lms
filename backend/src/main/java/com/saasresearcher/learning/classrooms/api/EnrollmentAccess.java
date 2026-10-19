@@ -28,4 +28,10 @@ public interface EnrollmentAccess {
      * grade publication, completion) takes this lock first, before any attempt lock.
      */
     EnrollmentView lock(UUID enrollmentId);
+
+    /** Whether completion has frozen this enrollment's lesson completions. */
+    boolean isLearningLocked(UUID enrollmentId);
+
+    /** Freezes lesson completions once a completion exists; call within the transaction holding the enrollment lock. */
+    void lockLearning(UUID enrollmentId);
 }

@@ -8,5 +8,7 @@ import java.util.UUID;
  */
 public interface ProgressObserver {
 
+    /** Called when a lesson's completion changes (not for resume-position updates). */
+
     void progressChanged(UUID enrollmentId);
 }

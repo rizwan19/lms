@@ -59,7 +59,7 @@ class ProgressIT extends PostgresIntegrationTest {
 
         save(lessonIds.get(0), 2, false, 300).expect(200);
         assertThat(dashboard().path("summary").path("completed").asInt()).isZero();
-        assertThat(progressObserver.changed()).hasSize(4).containsOnly(enrollmentId);
+        assertThat(progressObserver.changed()).as("only completion changes notify").hasSize(3).containsOnly(enrollmentId);
     }
 
     @Test

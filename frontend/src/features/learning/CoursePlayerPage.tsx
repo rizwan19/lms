@@ -8,6 +8,7 @@ import { ExternalVideo, LessonContent } from '../courses/LessonContent'
 import { DocumentViewer } from './DocumentViewer'
 import { ProgressBar } from './ProgressBar'
 import { EnrollmentExams } from '../assessments/EnrollmentExams'
+import { CompletionRequirements } from './CompletionRequirements'
 import type { Player } from './types'
 import { useProgressSaver } from './useProgressSaver'
 import { VideoPlayer } from './VideoPlayer'
@@ -48,6 +49,7 @@ export function CoursePlayerPage() {
         <Link to="/student">My learning</Link>
       </div>
       <ProgressBar summary={summary} />
+      <CompletionRequirements enrollmentId={id} />
       <EnrollmentExams enrollmentId={id} />
       <div className="player">
         <CourseOutline

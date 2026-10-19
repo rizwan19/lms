@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 class ProgressService implements LearningProgress {
 
     static final String PROGRESS_REVISION_CONFLICT = "PROGRESS_REVISION_CONFLICT";
+    static final String COMPLETION_LOCKED = "COMPLETION_LOCKED";
     private static final long MAX_RESUME_SECONDS = 24 * 60 * 60;
 
     private final ProgressRepository progress;
@@ -55,12 +56,17 @@ class ProgressService implements LearningProgress {
         if (command.expectedRevision() != revision) {
             throw ApiException.conflict(PROGRESS_REVISION_CONFLICT, "Progress was saved from another tab; reloading");
         }
+        if (!command.completed() && current != null && current.completed() && enrollments.isLearningLocked(enrollmentId)) {
+            throw ApiException.conflict(COMPLETION_LOCKED, "Lessons cannot be marked incomplete after the course is completed");
+        }
         Instant now = clock.instant();
         long resume = Math.max(current == null ? 0 : current.resumeSeconds(), Math.clamp(command.resumeSeconds(), 0, MAX_RESUME_SECONDS));
         Instant completedAt = command.completed() ? (current != null && current.completed() ? current.completedAt() : now) : null;
         ProgressView saved = new ProgressView(lessonId, completedAt != null, completedAt, resume, revision + 1, now);
         progress.upsert(enrollmentId, saved);
-        observers.forEach(observer -> observer.progressChanged(enrollmentId));
+        if (saved.completed() != (current != null && current.completed())) {
+            observers.forEach(observer -> observer.progressChanged(enrollmentId));
+        }
         return saved;
     }
 

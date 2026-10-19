@@ -35,6 +35,9 @@ class Enrollment {
     @Column(name = "status_changed_at", nullable = false)
     private Instant statusChangedAt;
 
+    @Column(name = "learning_locked", nullable = false)
+    private boolean learningLocked;
+
     @Version
     private long version;
 
@@ -53,6 +56,14 @@ class Enrollment {
     void changeStatus(EnrollmentStatus status, Instant now) {
         this.status = status;
         this.statusChangedAt = now;
+    }
+
+    void lockLearning() {
+        this.learningLocked = true;
+    }
+
+    boolean learningLocked() {
+        return learningLocked;
     }
 
     EnrollmentView toView(UUID courseVersionId) {
