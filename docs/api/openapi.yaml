@@ -25,6 +25,7 @@ tags:
   - name: attempts
   - name: grading
   - name: certificates
+  - name: reports
 paths:
   /auth/csrf:
     get:
@@ -834,6 +835,45 @@ paths:
                   course: { type: [string, 'null'] }
                   completedOn: { type: [string, 'null'], format: date }
                   student: { type: [string, 'null'] }
+        '404': { $ref: '#/components/responses/Problem' }
+  /reports/classes/{id}/progress:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [reports]
+      summary: Class progress matrix (class teachers); lesson percent counts required lessons only, null when none are required
+      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Size' }]
+      responses:
+        '200': { description: Page of StudentProgressRow }
+  /reports/classes/{id}/scores:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [reports]
+      summary: Best published score per assignment with its revision; pending grading flagged, never shown as zero
+      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Size' }]
+      responses:
+        '200': { description: Page of StudentScoreRow }
+  /reports/classes/{id}/export:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [reports]
+      summary: Queue a formula-safe CSV export (UTC and institution-timezone times) for the requester only
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [type], properties: { type: { type: string, enum: [PROGRESS, SCORES] } } } } } }
+      responses:
+        '202': { description: Export queued }
+  /reports/classes/{id}/exports:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [reports]
+      summary: The caller's recent exports for the class
+      responses:
+        '200': { description: Exports }
+  /reports/exports/{id}/download:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [reports]
+      summary: Download a ready export; only the requester while they still teach the class
+      responses:
+        '200': { description: CSV, content: { text/csv: { schema: { type: string } } } }
         '404': { $ref: '#/components/responses/Problem' }
 components:
   parameters:

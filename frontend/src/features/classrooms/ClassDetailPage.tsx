@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import { api, query, type Page } from '../../shared/api'
 import type { TemporaryCredential } from '../../shared/types'
 import { zonedInputToInstant } from '../../shared/time'
@@ -23,7 +23,10 @@ export function ClassDetailPage() {
     <QueryState query={detail}>
       {(item) => (
         <section>
-          <h1>{item.name}</h1>
+          <div className="page-header">
+            <h1>{item.name}</h1>
+            <Link to={`/teacher/classes/${item.id}/reports`}>Reports</Link>
+          </div>
           <p>
             {item.courseTitle}, edition {item.edition} · <strong>{item.status.toLowerCase()}</strong>
           </p>

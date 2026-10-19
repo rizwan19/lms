@@ -24,6 +24,7 @@ import { GradeAttemptPage } from '../features/grading/GradeAttemptPage'
 import { StudentResultsPage } from '../features/results/StudentResultsPage'
 import { StudentCertificatesPage } from '../features/certificates/StudentCertificatesPage'
 import { VerifyCertificatePage } from '../features/certificates/VerifyCertificatePage'
+import { ClassReportsPage } from '../features/reports/ClassReportsPage'
 
 function Home() {
   const { activeRole } = useSession()
@@ -50,6 +51,7 @@ export const routes: RouteObject[] = [
       { path: '/teacher/courses/:id/preview', element: <RequireAuth roles={STAFF}><CoursePreviewPage /></RequireAuth> },
       { path: '/teacher/exams/:id/edit', element: <RequireAuth roles={STAFF}><ExamEditorPage /></RequireAuth> },
       { path: '/teacher/classes', element: <RequireAuth roles={STAFF}><ClassListPage /></RequireAuth> },
+      { path: '/teacher/classes/:id/reports', element: <RequireAuth roles={STAFF}><ClassReportsPage /></RequireAuth> },
       { path: '/teacher/classes/:id', element: <RequireAuth roles={STAFF}><ClassDetailPage /></RequireAuth> },
       { path: '/student', element: <RequireAuth roles={['STUDENT']}><StudentDashboardPage /></RequireAuth> },
       { path: '/student/enrollments/:id', element: <RequireAuth roles={['STUDENT']}><CoursePlayerPage /></RequireAuth> },
