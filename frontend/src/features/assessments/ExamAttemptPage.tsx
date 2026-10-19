@@ -10,7 +10,11 @@ import { useAnswerAutosave } from './useAnswerAutosave'
 export function ExamAttemptPage() {
   const { id = '' } = useParams()
   const attempt = useQuery({ queryKey: ['attempt', id], queryFn: () => api.get<Attempt>(`/attempts/${id}`), refetchOnWindowFocus: false })
-  return <QueryState query={attempt}>{(loaded) => (loaded.status === 'IN_PROGRESS' ? <AttemptForm key={loaded.id} attempt={loaded} /> : <Finished attempt={loaded} />)}</QueryState>
+  return (
+    <QueryState query={attempt}>
+      {(loaded) => (loaded.status === 'IN_PROGRESS' ? <AttemptForm key={loaded.id} attempt={loaded} fetchedAt={attempt.dataUpdatedAt} /> : <Finished attempt={loaded} />)}
+    </QueryState>
+  )
 }
 
 function Finished({ attempt }: { attempt: Attempt }) {
@@ -25,21 +29,23 @@ function Finished({ attempt }: { attempt: Attempt }) {
   )
 }
 
-/** Remaining time from the server's clock; the client clock only measures elapsed time since loading. */
-function useRemainingSeconds(attempt: Attempt) {
-  const [loadedAt] = useState(() => Date.now())
-  const total = (Date.parse(attempt.expiresAt) - Date.parse(attempt.serverNow)) / 1000
-  const [now, setNow] = useState(loadedAt)
+/**
+ * Remaining time from the server's clock: the deadline minus the server time of the latest fetch, less the time that
+ * has passed locally since that fetch. Refetches (e.g. on reconnect) re-anchor without double counting.
+ */
+function useRemainingSeconds(attempt: Attempt, fetchedAt: number) {
+  const remainingAtFetch = (Date.parse(attempt.expiresAt) - Date.parse(attempt.serverNow)) / 1000
+  const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(timer)
   }, [])
-  return Math.max(0, Math.floor(total - (now - loadedAt) / 1000))
+  return Math.max(0, Math.floor(remainingAtFetch - Math.max(0, now - fetchedAt) / 1000))
 }
 
 const ANNOUNCEMENTS = [600, 300, 60]
 
-function AttemptForm({ attempt }: { attempt: Attempt }) {
+function AttemptForm({ attempt, fetchedAt }: { attempt: Attempt; fetchedAt: number }) {
   const queryClient = useQueryClient()
   const [closedMessage, setClosedMessage] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
@@ -53,7 +59,7 @@ function AttemptForm({ attempt }: { attempt: Attempt }) {
     [reload],
   )
   const answers = useAnswerAutosave(attempt.id, attempt.answers, onClosed)
-  const remaining = useRemainingSeconds(attempt)
+  const remaining = useRemainingSeconds(attempt, fetchedAt)
   const announcement = ANNOUNCEMENTS.find((threshold) => remaining <= threshold && remaining > threshold - 5)
 
   useEffect(() => {

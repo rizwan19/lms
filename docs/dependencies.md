@@ -12,6 +12,7 @@ explicitly versioned libraries are pinned in `backend/pom.xml`. Frontend version
 | Maven | 3.9.16 via Maven Wrapper 3.3.4 | `backend/.mvn/wrapper/maven-wrapper.properties` |
 | Node.js | 22.x, >= 22.22.0 | Several current toolchain packages (react-router 8, jsdom 30) require >= 22.22; still within the major-22 baseline |
 | PostgreSQL | 17 (`postgres:17-alpine`) | Tests and development compose file |
+| k6 (load test, not shipped) | 2.3.0 | `scripts/load/learning-portal.js` |
 | ffprobe | FFmpeg 9.x (dev), 6.1 (Ubuntu 24.04 image) | Required at runtime for video metadata validation |
 | Container images | eclipse-temurin:21-jdk/jre-noble, node:22-bookworm-slim, caddy:2.10-alpine, postgres:17-alpine | Test S3 server: chrislusf/seaweedfs:3.97 |
 
@@ -26,8 +27,8 @@ explicitly versioned libraries are pinned in `backend/pom.xml`. Frontend version
 | Spring Boot Mail (Jakarta Mail via BOM) | 4.1.1 | Apache-2.0 / EPL-2.0 |
 | Hibernate ORM | 7.4.5.Final | Apache-2.0 |
 | Flyway (core, database-postgresql) | 12.4.0 | Apache-2.0 |
-| Jackson databind | 3.1.5 | Apache-2.0 |
-| Tomcat embed | 11.0.24 | Apache-2.0 |
+| Jackson databind (pinned, security override) | 3.1.8 | Apache-2.0 |
+| Tomcat embed (pinned, security override) | 11.0.27 | Apache-2.0 |
 | PostgreSQL JDBC | 42.7.13 | BSD-2-Clause |
 | Testcontainers | BOM-managed 2.x | MIT |
 | OWASP Java HTML Sanitizer (pinned) | 20261011.1 | Apache-2.0 |
@@ -54,4 +55,5 @@ explicitly versioned libraries are pinned in `backend/pom.xml`. Frontend version
 | @testing-library/react / jest-dom / user-event | 16.3.3 / 6.9.1 / 14.6.8 | MIT |
 | eslint / @eslint/js / typescript-eslint / eslint-plugin-react-hooks | 10.13.0 / 10.0.1 / 8.71.2 / 7.1.1 | MIT |
 | @playwright/test | 1.64.1 | Apache-2.0 |
+| axe-core (dev, accessibility tests) | 4.14.0 | MPL-2.0 |
 | @types/node | 22.x (dev) | MIT |

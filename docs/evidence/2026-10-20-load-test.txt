@@ -1,0 +1,45 @@
+k6 v2.3.0 load test, 2026-10-20: scripts/load/learning-portal.js, DURATION=5m, BASE_URL=http://localhost:8088
+Target: Docker Compose stack (local storage) in Colima VM, 2 vCPU / 2 GiB, Apple M3 Pro host; k6 on the host.
+Workload: 1,000 enrolled synthetic students in one class; 100 concurrent sessions (70 learners, 30 exam takers).
+Setup (seeding 1,000 accounts and enrollments through the API) took ~5.5 min and is excluded from kind:api.
+
+  █ THRESHOLDS 
+
+    checks
+    ✓ 'rate>0.99' rate=100.00%
+
+    http_req_duration{kind:api}
+    ✓ 'p(95)<500' p(95)=8.54ms
+
+
+  █ TOTAL RESULTS 
+
+    checks_total.......: 33435   52.785894/s
+    checks_succeeded...: 100.00% 33435 out of 33435
+    checks_failed......: 0.00%   0 out of 33435
+
+    ✓ signed in
+    ✓ dashboard
+    ✓ player
+    ✓ progress
+    ✓ started
+    ✓ answer saved
+    ✓ attempt read
+
+    HTTP
+    http_req_duration..............: avg=48.12ms min=620µs  med=3.82ms max=13.8s    p(90)=7.85ms p(95)=15.87ms
+      { expected_response:true }...: avg=48.12ms min=620µs  med=3.82ms max=13.8s    p(90)=7.85ms p(95)=15.87ms
+      { kind:api }.................: avg=4.74ms  min=1.58ms med=3.78ms max=664.06ms p(90)=6.84ms p(95)=8.54ms 
+    http_req_failed................: 0.00%  0 out of 35948
+    http_reqs......................: 35948  56.753322/s
+
+    EXECUTION
+    iteration_duration.............: avg=2.33s   min=1s     med=2.24s  max=17.19s   p(90)=3.18s  p(95)=3.64s  
+    iterations.....................: 12888  20.347079/s
+    vus............................: 4      min=0          max=100
+    vus_max........................: 100    min=100        max=100
+
+    NETWORK
+
+Post-run container usage:
+app 437.8MiB, web 24.75MiB, postgres 79.67MiB (of 1.913GiB VM)

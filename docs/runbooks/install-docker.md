@@ -1,6 +1,7 @@
 # Install with Docker Compose
 
-Tested with Docker Engine 29 and Docker Compose 5 on a 4 vCPU / 8 GiB host.
+Verified with Docker Engine 29.5 and Docker Compose 5.1 in a Colima VM (2 vCPU / 2 GiB). The recommended production
+host is 4 vCPU / 8 GiB; see [../verification-results.md](../verification-results.md) for measured load results.
 
 1. Install Docker Engine with the Compose plugin and point a DNS name (e.g. `learn.example.org`) at the host.
    Open ports 80 and 443 only.

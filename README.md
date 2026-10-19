@@ -7,6 +7,9 @@ installation, private lesson materials, classes, mixed exams, teacher grading an
 - Plan: [implementation plan](.agent/plans/2026-10-18-learning-portal.md)
 - API: [docs/api/openapi.yaml](docs/api/openapi.yaml)
 - Dependencies: [docs/dependencies.md](docs/dependencies.md)
+- Setup guide: [HowToSetup.md](HowToSetup.md) (demo mode, Docker Compose, VPS)
+- Contributor and agent notes: [AGENTS.md](AGENTS.md)
+- Release: [docs/release-checklist.md](docs/release-checklist.md), [docs/verification-results.md](docs/verification-results.md)
 
 ## Layout
 
@@ -14,7 +17,8 @@ installation, private lesson materials, classes, mixed exams, teacher grading an
 backend/   Spring Boot 4.1 modular monolith (Java 21, Maven Wrapper)
 frontend/  React 19 + TypeScript + Vite single-page app
 deploy/    Docker Compose and container definitions
-docs/      API contract, runbooks and dependency records
+docs/      API contract, runbooks, dependency records and verification evidence
+scripts/   Backup/restore scripts and the k6 load test
 ```
 
 ## Development
@@ -35,6 +39,10 @@ cd backend && ./mvnw spring-boot:test-run
 cd frontend && npm ci && npm run dev
 ```
 
+Add the `demo` profile (`-Dspring-boot.run.profiles=dev,demo`) to create `demo-admin`, `demo-teacher` and
+`demo-student` (password `demo-password-not-secret`) on an empty database. Demo mode refuses to start with secure
+cookies, i.e. on any production configuration.
+
 ## Installation
 
 - Docker Compose: [docs/runbooks/install-docker.md](docs/runbooks/install-docker.md)
@@ -47,6 +55,7 @@ cd frontend && npm ci && npm run dev
 cd backend && ./mvnw verify          # unit tests (*Test) and integration tests (*IT, Testcontainers)
 cd frontend && npm run lint && npm run typecheck && npm test -- --run && npm run build
 cd frontend && npm run test:e2e      # Playwright; boots the backend via spring-boot:test-run
+k6 run scripts/load/learning-portal.js   # load test against a running stack (see the script header)
 ```
 
 With Colima, export `DOCKER_HOST=unix://$HOME/.colima/default/docker.sock` and

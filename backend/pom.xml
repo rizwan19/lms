@@ -24,6 +24,9 @@
         <pdfbox.version>3.0.8</pdfbox.version>
         <zxing.version>3.5.4</zxing.version>
         <aws-sdk.version>2.56.0</aws-sdk.version>
+        <!-- Security patch overrides of Boot 4.1.1 managed versions; drop when Boot ships these or newer. -->
+        <tomcat.version>11.0.27</tomcat.version>
+        <jackson-bom.version>3.1.8</jackson-bom.version>
     </properties>
 
     <dependencyManagement>
