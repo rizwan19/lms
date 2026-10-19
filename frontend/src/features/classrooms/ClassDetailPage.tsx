@@ -10,6 +10,7 @@ import { useSession } from '../../app/session'
 import { CreateAccountForm } from '../accounts/CreateAccountForm'
 import { CredentialNotice } from '../accounts/CredentialNotice'
 import type { Account } from '../accounts/types'
+import { ExamSchedule } from '../assessments/ExamScheduleDialog'
 import { RosterImportDialog } from './RosterImportDialog'
 import { ScheduleFields } from './ScheduleFields'
 import type { ClassDetail, EnrollmentStatus, RosterRow } from './types'
@@ -27,6 +28,7 @@ export function ClassDetailPage() {
           </p>
           <ClassSettings key={item.revision} item={item} />
           <Teachers item={item} />
+          <ExamSchedule classId={item.id} archived={item.status === 'ARCHIVED'} />
           <Roster classId={item.id} archived={item.status === 'ARCHIVED'} />
         </section>
       )}

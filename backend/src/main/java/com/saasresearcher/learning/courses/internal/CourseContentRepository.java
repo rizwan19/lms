@@ -75,6 +75,19 @@ class CourseContentRepository {
         }
     }
 
+    List<UUID> requiredExams(UUID versionId) {
+        return jdbc.sql("select exam_version_id from course_required_exams where course_version_id = :version order by position")
+                .param("version", versionId).query(UUID.class).list();
+    }
+
+    void replaceRequiredExams(UUID versionId, List<UUID> examVersionIds) {
+        jdbc.sql("delete from course_required_exams where course_version_id = :version").param("version", versionId).update();
+        for (int i = 0; i < examVersionIds.size(); i++) {
+            jdbc.sql("insert into course_required_exams (course_version_id, exam_version_id, position) values (:version, :exam, :position)")
+                    .param("version", versionId).param("exam", examVersionIds.get(i)).param("position", i).update();
+        }
+    }
+
     Set<UUID> lessonIds(UUID versionId) {
         return Set.copyOf(jdbc.sql("select id from lessons where course_version_id = :version").param("version", versionId).query(UUID.class).list());
     }

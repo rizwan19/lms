@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { api, type FieldErrors } from '../../shared/api'
-import { ErrorMessage, QueryState, fieldErrors, formatDateTime } from '../../shared/ui'
+import { api } from '../../shared/api'
+import { ErrorMessage, QueryState, fieldErrors, formatDateTime, scopedErrors } from '../../shared/ui'
 import { fromServer, move, newLesson, newSection, toPayload, type DraftState, type LessonDraft, type SectionDraft } from './draftState'
 import { LessonEditor } from './LessonEditor'
 import type { CourseDetail, Draft, PublishedEdition } from './types'
+import { CourseExams, useCourseExams } from '../assessments/CourseExams'
 
 export function CourseEditorPage() {
   const { id = '' } = useParams()
@@ -26,6 +27,7 @@ export function CourseEditorPage() {
             </p>
           )}
           {detail.draft ? <DraftLoader courseId={id} onPublished={setPublished} /> : <Editions course={detail} onStarted={() => setPublished(null)} />}
+          <CourseExams courseId={id} />
         </section>
       )}
     </QueryState>
@@ -66,11 +68,6 @@ function Editions({ course, onStarted }: { course: CourseDetail; onStarted: () =
 function DraftLoader({ courseId, onPublished }: { courseId: string; onPublished: (edition: number) => void }) {
   const draft = useQuery({ queryKey: ['course', courseId, 'draft'], queryFn: () => api.get<Draft>(`/courses/${courseId}/draft`) })
   return <QueryState query={draft}>{(loaded) => <DraftEditor key={loaded.versionId} draft={loaded} onPublished={onPublished} />}</QueryState>
-}
-
-/** Prefix-scoped view of server field errors, e.g. "sections[0].lessons[1]." */
-function scoped(errors: FieldErrors, prefix: string): FieldErrors {
-  return Object.fromEntries(Object.entries(errors).filter(([key]) => key.startsWith(prefix)).map(([key, value]) => [key.slice(prefix.length), value]))
 }
 
 function DraftEditor({ draft, onPublished }: { draft: Draft; onPublished: (edition: number) => void }) {
@@ -138,7 +135,7 @@ function DraftEditor({ draft, onPublished }: { draft: Draft; onPublished: (editi
               key={lesson.key}
               name={`Lesson ${s + 1}.${l + 1}`}
               lesson={lesson}
-              errors={scoped(errors, `sections[${s}].lessons[${l}].`)}
+              errors={scopedErrors(errors, `sections[${s}].lessons[${l}].`)}
               onChange={(patch) => updateLesson(s, l, patch)}
               onMove={(offset) => updateSection(s, { lessons: move(section.lessons, l, offset) })}
               onRemove={() => updateSection(s, { lessons: section.lessons.filter((_, i) => i !== l) })}
@@ -174,8 +171,45 @@ function DraftEditor({ draft, onPublished }: { draft: Draft; onPublished: (editi
         {dirty && <span className="muted">Unsaved changes</span>}
         {save.isSuccess && !dirty && <span role="status">Draft saved.</span>}
       </div>
+      <RequiredExams
+        courseId={draft.courseId}
+        selected={state.requiredExamVersionIds}
+        error={errors.requiredExamVersionIds}
+        onChange={(requiredExamVersionIds) => update({ ...state, requiredExamVersionIds })}
+      />
       {errors.sections && <p className="error">{errors.sections}</p>}
       <ErrorMessage error={save.error ?? publish.error} />
     </form>
+  )
+}
+
+/** Required exams are part of the edition's completion policy; each refers to a published exam edition. */
+function RequiredExams({ courseId, selected, error, onChange }: { courseId: string; selected: string[]; error?: string; onChange: (ids: string[]) => void }) {
+  const exams = useCourseExams(courseId)
+  const published = exams.data?.filter((exam) => exam.latestVersionId) ?? []
+  const latest = new Set(published.map((exam) => exam.latestVersionId))
+  return (
+    <fieldset className="card">
+      <legend>Required exams</legend>
+      {published.length === 0 && <p className="muted">Publish an exam to make it a completion requirement.</p>}
+      {published.map((exam) => (
+        <label key={exam.id} className="inline">
+          <input
+            type="checkbox"
+            checked={selected.includes(exam.latestVersionId!)}
+            onChange={(event) => onChange(event.target.checked ? [...selected, exam.latestVersionId!] : selected.filter((id) => id !== exam.latestVersionId))}
+          />
+          {exam.title} (edition {exam.latestEdition})
+        </label>
+      ))}
+      {selected
+        .filter((id) => !latest.has(id))
+        .map((id) => (
+          <label key={id} className="inline">
+            <input type="checkbox" checked onChange={() => onChange(selected.filter((other) => other !== id))} /> An earlier exam edition
+          </label>
+        ))}
+      {error && <small className="error">{error}</small>}
+    </fieldset>
   )
 }

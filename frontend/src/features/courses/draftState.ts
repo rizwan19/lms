@@ -17,7 +17,7 @@ export type LessonDraft = {
 
 export type SectionDraft = { key: string; id: string | null; title: string; lessons: LessonDraft[] }
 
-export type DraftState = { title: string; description: string; sections: SectionDraft[] }
+export type DraftState = { title: string; description: string; sections: SectionDraft[]; requiredExamVersionIds: string[] }
 
 let nextKey = 0
 const newKey = () => `new-${nextKey++}`
@@ -34,6 +34,7 @@ export function fromServer(draft: Draft): DraftState {
   return {
     title: draft.title,
     description: draft.description,
+    requiredExamVersionIds: draft.requiredExamVersionIds,
     sections: draft.sections.map((section) => ({
       key: section.id,
       id: section.id,
@@ -58,6 +59,7 @@ export function toPayload(state: DraftState, expectedRevision: number) {
     expectedRevision,
     title: state.title,
     description: state.description,
+    requiredExamVersionIds: state.requiredExamVersionIds,
     sections: state.sections.map((section) => ({
       id: section.id,
       title: section.title,

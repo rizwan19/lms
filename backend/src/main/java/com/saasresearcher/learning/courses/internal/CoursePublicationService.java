@@ -30,16 +30,18 @@ class CoursePublicationService {
     private final CourseAccess access;
     private final MediaCatalog media;
     private final CourseCatalog catalog;
+    private final RequiredExams requiredExams;
     private final AuditLog audit;
     private final Clock clock;
 
     CoursePublicationService(CourseRepository courses, CourseContentRepository content, CourseAccess access, MediaCatalog media,
-            CourseCatalog catalog, AuditLog audit, Clock clock) {
+            CourseCatalog catalog, RequiredExams requiredExams, AuditLog audit, Clock clock) {
         this.courses = courses;
         this.content = content;
         this.access = access;
         this.media = media;
         this.catalog = catalog;
+        this.requiredExams = requiredExams;
         this.audit = audit;
         this.clock = clock;
     }
@@ -51,6 +53,7 @@ class CoursePublicationService {
                 .orElseThrow(() -> ApiException.conflict(CourseErrors.NO_DRAFT, "There is no draft to publish"));
         Revisions.require(expectedRevision, draft.version());
         requirePublishable(draft, content.readTree(draft.id()));
+        requiredExams.require(courseId, content.requiredExams(draft.id()));
 
         int edition = courses.nextEdition(courseId);
         courses.publish(draft.id(), edition, actor.userId(), clock.instant());

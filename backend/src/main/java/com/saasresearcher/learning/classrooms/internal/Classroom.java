@@ -1,5 +1,6 @@
 package com.saasresearcher.learning.classrooms.internal;
 
+import com.saasresearcher.learning.classrooms.api.ClassInfo;
 import com.saasresearcher.learning.classrooms.api.ClassStatus;
 import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
@@ -109,6 +110,10 @@ class Classroom {
     /** Learning access needs an active class inside its optional date window. */
     boolean isOpen(Instant now) {
         return status == ClassStatus.ACTIVE && (startsAt == null || !now.isBefore(startsAt)) && (endsAt == null || now.isBefore(endsAt));
+    }
+
+    ClassInfo toInfo() {
+        return new ClassInfo(id, name, courseId, courseVersionId, status, startsAt, endsAt);
     }
 
     boolean hasTeacher(UUID userId) {

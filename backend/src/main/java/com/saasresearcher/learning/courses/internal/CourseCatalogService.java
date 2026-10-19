@@ -28,7 +28,8 @@ class CourseCatalogService implements CourseCatalog {
         VersionRow version = courses.findVersion(versionId).filter(row -> !row.isDraft()).orElseThrow(ApiException::notFound);
         CourseRow course = courses.findCourse(version.courseId()).orElseThrow(ApiException::notFound);
         return new PublishedCourse(version.id(), version.courseId(), version.edition(), version.title(), version.description(),
-                version.publishedAt(), course.status() == CourseStatus.ARCHIVED, content.readTree(version.id()));
+                version.publishedAt(), course.status() == CourseStatus.ARCHIVED, content.readTree(version.id()),
+                content.requiredExams(version.id()));
     }
 
     @Override

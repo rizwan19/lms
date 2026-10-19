@@ -24,10 +24,12 @@ final class CourseViews {
     record CourseDetail(UUID id, String title, CourseStatus status, List<TeacherView> teachers, List<EditionView> editions, DraftHeader draft) {
     }
 
-    record DraftView(UUID versionId, UUID courseId, long revision, String title, String description, List<CourseSection> sections) {
+    record DraftView(UUID versionId, UUID courseId, long revision, String title, String description, List<CourseSection> sections,
+            List<UUID> requiredExamVersionIds) {
     }
 
     /** Draft or edition content as a student would see it; {@code edition} is null for drafts. */
-    record PreviewView(UUID versionId, UUID courseId, Integer edition, String title, String description, List<CourseSection> sections) {
+    record PreviewView(UUID versionId, UUID courseId, Integer edition, String title, String description, List<CourseSection> sections,
+            List<UUID> requiredExamVersionIds) {
     }
 }

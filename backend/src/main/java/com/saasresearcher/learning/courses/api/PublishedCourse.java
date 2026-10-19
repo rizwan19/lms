@@ -8,12 +8,13 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/** An immutable published edition. {@code archived} courses keep serving existing classes but accept no new ones. */
+/** An immutable published edition; its completion policy is the required lessons plus {@code requiredExamVersionIds}. {@code archived} courses keep serving existing classes but accept no new ones. */
 public record PublishedCourse(UUID versionId, UUID courseId, int edition, String title, String description, Instant publishedAt,
-        boolean archived, List<CourseSection> sections) {
+        boolean archived, List<CourseSection> sections, List<UUID> requiredExamVersionIds) {
 
     public PublishedCourse {
         sections = List.copyOf(sections);
+        requiredExamVersionIds = List.copyOf(requiredExamVersionIds);
     }
 
     public Set<UUID> requiredLessonIds() {

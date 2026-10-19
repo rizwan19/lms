@@ -26,6 +26,7 @@ import com.saasresearcher.learning.identity.api.IdentityAccess;
 import com.saasresearcher.learning.media.api.MediaService;
 import java.time.Clock;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -45,16 +46,18 @@ class CourseAuthoringService {
     private final CourseAccess access;
     private final MediaService media;
     private final IdentityAccess identity;
+    private final RequiredExams requiredExams;
     private final AuditLog audit;
     private final Clock clock;
 
     CourseAuthoringService(CourseRepository courses, CourseContentRepository content, CourseAccess access, MediaService media,
-            IdentityAccess identity, AuditLog audit, Clock clock) {
+            IdentityAccess identity, RequiredExams requiredExams, AuditLog audit, Clock clock) {
         this.courses = courses;
         this.content = content;
         this.access = access;
         this.media = media;
         this.identity = identity;
+        this.requiredExams = requiredExams;
         this.audit = audit;
         this.clock = clock;
     }
@@ -108,12 +111,15 @@ class CourseAuthoringService {
         VersionRow draft = requireDraft(courseId);
         List<CourseSection> tree = DraftRules.normalize(input, content.sectionIds(draft.id()), content.lessonIds(draft.id()));
         requireReadableAssets(tree, actor);
+        List<UUID> examIds = input.requiredExamVersionIds() == null ? List.of() : List.copyOf(new LinkedHashSet<>(input.requiredExamVersionIds()));
+        requiredExams.require(draft.courseId(), examIds);
         if (!courses.updateDraft(draft.id(), input.expectedRevision(), input.title().trim(),
                 input.description() == null ? "" : input.description().trim(), clock.instant())) {
             throw ApiException.conflict(ErrorCodes.REVISION_CONFLICT,
                     "The draft was changed by another request; reload and retry");
         }
         content.replaceTree(draft.id(), tree);
+        content.replaceRequiredExams(draft.id(), examIds);
         return draftView(requireDraft(courseId));
     }
 
@@ -130,6 +136,7 @@ class CourseAuthoringService {
         UUID draftId = UUID.randomUUID();
         courses.insertDraft(draftId, courseId, source.title(), source.description(), source.id(), clock.instant());
         content.replaceTree(draftId, withNewIds(content.readTree(source.id())));
+        content.replaceRequiredExams(draftId, content.requiredExams(source.id()));
         audit.record(AuditEntry.success(actor.userId(), "course.draft-started", "course", courseId, Map.of("fromEdition", source.edition())));
         return draftView(requireDraft(courseId));
     }
@@ -165,7 +172,8 @@ class CourseAuthoringService {
                 ? courses.findDraft(courseId).or(() -> courses.editions(courseId).stream().findFirst())
                 : courses.findVersion(versionId).filter(row -> row.courseId().equals(courseId)))
                 .orElseThrow(ApiException::notFound);
-        return new PreviewView(version.id(), courseId, version.edition(), version.title(), version.description(), content.readTree(version.id()));
+        return new PreviewView(version.id(), courseId, version.edition(), version.title(), version.description(), content.readTree(version.id()),
+                content.requiredExams(version.id()));
     }
 
     private VersionRow requireDraft(UUID courseId) {
@@ -174,7 +182,8 @@ class CourseAuthoringService {
     }
 
     private DraftView draftView(VersionRow draft) {
-        return new DraftView(draft.id(), draft.courseId(), draft.version(), draft.title(), draft.description(), content.readTree(draft.id()));
+        return new DraftView(draft.id(), draft.courseId(), draft.version(), draft.title(), draft.description(), content.readTree(draft.id()),
+                content.requiredExams(draft.id()));
     }
 
     /** Every referenced file must be readable by the author, so drafts cannot be used to reach others' files. */

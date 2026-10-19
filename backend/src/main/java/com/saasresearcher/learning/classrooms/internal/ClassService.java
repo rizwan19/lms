@@ -2,6 +2,7 @@ package com.saasresearcher.learning.classrooms.internal;
 
 import com.saasresearcher.learning.audit.api.AuditEntry;
 import com.saasresearcher.learning.audit.api.AuditLog;
+import com.saasresearcher.learning.classrooms.api.ClassLifecycleListener;
 import com.saasresearcher.learning.classrooms.api.ClassStatus;
 import com.saasresearcher.learning.classrooms.internal.ClassViews.ClassDetail;
 import com.saasresearcher.learning.classrooms.internal.ClassViews.ClassSummary;
@@ -24,6 +25,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -37,15 +39,17 @@ class ClassService {
     private final ClassAuthorization authorization;
     private final CourseCatalog catalog;
     private final IdentityAccess identity;
+    private final ObjectProvider<ClassLifecycleListener> listeners;
     private final AuditLog audit;
     private final Clock clock;
 
     ClassService(ClassroomRepository classes, ClassAuthorization authorization, CourseCatalog catalog, IdentityAccess identity,
-            AuditLog audit, Clock clock) {
+            ObjectProvider<ClassLifecycleListener> listeners, AuditLog audit, Clock clock) {
         this.classes = classes;
         this.authorization = authorization;
         this.catalog = catalog;
         this.identity = identity;
+        this.listeners = listeners;
         this.audit = audit;
         this.clock = clock;
     }
@@ -107,6 +111,8 @@ class ClassService {
             throw ApiException.conflict(ClassErrors.INVALID_CLASS_STATE, "Only draft classes can be activated");
         }
         classroom.activate(clock.instant());
+        classes.flush();
+        listeners.forEach(listener -> listener.classActivated(classroom.toInfo()));
         audit.record(AuditEntry.success(actor.userId(), "class.activated", "class", classId));
         return get(classId, actor);
     }

@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 /** Client-supplied draft tree. IDs are optional and honoured only when they already belong to the draft. */
-record DraftInput(long expectedRevision, String title, String description, List<SectionInput> sections) {
+record DraftInput(long expectedRevision, String title, String description, List<SectionInput> sections, List<UUID> requiredExamVersionIds) {
 
     record SectionInput(UUID id, String title, List<LessonInput> lessons) {
     }

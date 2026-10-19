@@ -23,7 +23,7 @@ export type CourseDetail = {
   draft: { versionId: string; revision: number; basedOnEdition: number | null } | null
 }
 
-export type Draft = { versionId: string; courseId: string; revision: number; title: string; description: string; sections: CourseSection[] }
+export type Draft = { versionId: string; courseId: string; revision: number; title: string; description: string; sections: CourseSection[]; requiredExamVersionIds: string[] }
 
 export type CoursePreview = { versionId: string; courseId: string; edition: number | null; title: string; description: string; sections: CourseSection[] }
 

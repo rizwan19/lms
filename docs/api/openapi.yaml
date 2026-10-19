@@ -21,6 +21,7 @@ tags:
   - name: courses
   - name: classes
   - name: learning
+  - name: exams
 paths:
   /auth/csrf:
     get:
@@ -534,6 +535,96 @@ paths:
         '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/LessonProgress' } } } }
         '403': { $ref: '#/components/responses/Problem' }
         '409': { $ref: '#/components/responses/Problem' }
+  /exams:
+    get:
+      tags: [exams]
+      summary: Exams of a course (course authors); latest edition and draft revision per exam
+      parameters: [{ name: courseId, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: Exams, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ExamSummary' } } } } }
+    post:
+      tags: [exams]
+      summary: Create an exam with an empty draft
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [courseId, title], properties: { courseId: { type: string, format: uuid }, title: { type: string } } } } } }
+      responses:
+        '201': { description: Exam, content: { application/json: { schema: { $ref: '#/components/schemas/ExamDetail' } } } }
+  /exams/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [exams]
+      summary: Exam editions and draft header
+      responses:
+        '200': { description: Exam, content: { application/json: { schema: { $ref: '#/components/schemas/ExamDetail' } } } }
+  /exams/{id}/draft:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [exams]
+      summary: Draft with answer keys (authors only)
+      responses:
+        '200': { description: Draft, content: { application/json: { schema: { $ref: '#/components/schemas/ExamContent' } } } }
+    put:
+      tags: [exams]
+      summary: Replace draft questions with expected revision; 1-100 questions, prompts up to 10,000 characters, points with 2 decimals
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ExamDraftInput' } } } }
+      responses:
+        '200': { description: Draft, content: { application/json: { schema: { $ref: '#/components/schemas/ExamContent' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [exams]
+      summary: Start a correction draft from a published edition
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [fromVersionId], properties: { fromVersionId: { type: string, format: uuid } } } } } }
+      responses:
+        '201': { description: Draft, content: { application/json: { schema: { $ref: '#/components/schemas/ExamContent' } } } }
+  /exams/{id}/publish:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [exams]
+      summary: Seal the draft as the next immutable edition; objective questions need complete keys
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [expectedRevision], properties: { expectedRevision: { type: integer } } } } } }
+      responses:
+        '200': { description: Edition, content: { application/json: { schema: { $ref: '#/components/schemas/ExamContent' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+  /exams/{id}/editions/{versionId}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+      - { name: versionId, in: path, required: true, schema: { type: string, format: uuid } }
+    get:
+      tags: [exams]
+      summary: Teacher preview of an edition, including keys
+      responses:
+        '200': { description: Edition, content: { application/json: { schema: { $ref: '#/components/schemas/ExamContent' } } } }
+  /exam-assignments:
+    get:
+      tags: [exams]
+      summary: Exam schedules of a class (class teachers)
+      parameters: [{ name: classId, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: Assignments, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ExamAssignment' } } } } }
+    post:
+      tags: [exams]
+      summary: Add an optional practice assignment for a published exam of the class's course
+      requestBody: { required: true, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ScheduleInput' }, { type: object, required: [classId, examVersionId], properties: { classId: { type: string, format: uuid }, examVersionId: { type: string, format: uuid } } }] } } } }
+      responses:
+        '201': { description: Assignment, content: { application/json: { schema: { $ref: '#/components/schemas/ExamAssignment' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+  /exam-assignments/available:
+    get:
+      tags: [exams]
+      summary: Published exams of the class's course
+      parameters: [{ name: classId, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: Exams, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ExamSummary' } } } } }
+  /exam-assignments/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    put:
+      tags: [exams]
+      summary: Reschedule or change policies; the exam edition and required flag never change
+      requestBody: { required: true, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ScheduleInput' }, { type: object, required: [expectedRevision], properties: { expectedRevision: { type: integer } } }] } } } }
+      responses:
+        '200': { description: Assignment, content: { application/json: { schema: { $ref: '#/components/schemas/ExamAssignment' } } } }
+        '400': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
 components:
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -743,6 +834,7 @@ components:
         title: { type: string }
         description: { type: string }
         sections: { type: array, items: { $ref: '#/components/schemas/CourseSection' } }
+        requiredExamVersionIds: { type: array, items: { type: string, format: uuid } }
     DraftInput:
       type: object
       required: [expectedRevision, title, sections]
@@ -771,6 +863,7 @@ components:
                     videoRef: { type: [string, 'null'], description: Provider video ID, never a URL }
                     resourceAssetIds: { type: array, items: { type: string, format: uuid } }
                     required: { type: boolean }
+        requiredExamVersionIds: { type: array, items: { type: string, format: uuid }, description: Published editions of this course's exams }
     PublishedCourse:
       type: object
       properties:
@@ -871,3 +964,73 @@ components:
         resumeSeconds: { type: integer }
         revision: { type: integer }
         lastActivityAt: { type: string, format: date-time }
+    QuestionType: { type: string, enum: [SINGLE_CHOICE, MULTIPLE_SELECT, TRUE_FALSE, WRITTEN] }
+    ExamSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        title: { type: string }
+        latestEdition: { type: [integer, 'null'] }
+        latestVersionId: { type: [string, 'null'], format: uuid }
+        draftRevision: { type: [integer, 'null'] }
+    ExamDetail:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        courseId: { type: string, format: uuid }
+        title: { type: string }
+        editions: { type: array, items: { type: object, properties: { versionId: { type: string, format: uuid }, edition: { type: integer }, title: { type: string }, publishedAt: { type: string, format: date-time } } } }
+        draft: { oneOf: [{ type: 'null' }, { type: object, properties: { versionId: { type: string, format: uuid }, revision: { type: integer } } }] }
+    AuthorQuestion:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/QuestionType' }
+        prompt: { type: string, description: Plain text }
+        points: { type: number }
+        explanation: { type: string }
+        gradingNotes: { type: string }
+        options: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, label: { type: string }, correct: { type: boolean } } } }
+    ExamContent:
+      type: object
+      properties:
+        versionId: { type: string, format: uuid }
+        examId: { type: string, format: uuid }
+        edition: { type: [integer, 'null'] }
+        revision: { type: integer }
+        title: { type: string }
+        instructions: { type: string }
+        passPercent: { type: number }
+        questions: { type: array, items: { $ref: '#/components/schemas/AuthorQuestion' } }
+    ExamDraftInput:
+      type: object
+      required: [expectedRevision, title, questions]
+      properties:
+        expectedRevision: { type: integer }
+        title: { type: string }
+        instructions: { type: string }
+        passPercent: { type: number, minimum: 0, maximum: 100 }
+        questions: { type: array, maxItems: 100, items: { $ref: '#/components/schemas/AuthorQuestion' } }
+    ScheduleInput:
+      type: object
+      properties:
+        opensAt: { type: [string, 'null'], format: date-time }
+        closesAt: { type: [string, 'null'], format: date-time }
+        durationMinutes: { type: [integer, 'null'], minimum: 1, maximum: 240, description: Null means untimed, which requires closesAt }
+        maxAttempts: { type: integer, minimum: 1, maximum: 10, default: 1 }
+        resultPolicy: { type: [string, 'null'], enum: [AUTO_PUBLISH, TEACHER_PUBLISH, null] }
+        feedbackPolicy: { type: [string, 'null'], enum: [SCORE_AND_COMMENTS, AFTER_CLOSE, AFTER_SUBMISSION, null] }
+    ExamAssignment:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        classId: { type: string, format: uuid }
+        examVersionId: { type: string, format: uuid }
+        examTitle: { type: string }
+        edition: { type: integer }
+        questionCount: { type: integer }
+        maxPoints: { type: number }
+        mixed: { type: boolean }
+        required: { type: boolean }
+        schedule: { $ref: '#/components/schemas/ScheduleInput' }
+        revision: { type: integer }

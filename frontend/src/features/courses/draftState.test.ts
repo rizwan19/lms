@@ -7,6 +7,7 @@ const draft: Draft = {
   revision: 3,
   title: 'পদার্থবিজ্ঞান',
   description: '',
+  requiredExamVersionIds: ['x1'],
   sections: [
     {
       id: 's1',

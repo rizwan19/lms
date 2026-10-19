@@ -31,7 +31,12 @@ public final class CourseFixtures {
     }
 
     public static Map<String, Object> draft(long revision, String title, List<Map<String, Object>> sections) {
-        return Map.of("expectedRevision", revision, "title", title, "description", "", "sections", sections);
+        return draft(revision, title, sections, List.of());
+    }
+
+    public static Map<String, Object> draft(long revision, String title, List<Map<String, Object>> sections, List<?> requiredExamVersionIds) {
+        return Map.of("expectedRevision", revision, "title", title, "description", "", "sections", sections,
+                "requiredExamVersionIds", requiredExamVersionIds);
     }
 
     public static UUID createCourse(ApiClient author, String title) {

@@ -23,6 +23,8 @@ interface EnrollmentRepository extends JpaRepository<Enrollment, UUID> {
 
     Page<Enrollment> findByClassId(UUID classId, Pageable pageable);
 
+    boolean existsByClassId(UUID classId);
+
     Page<Enrollment> findByClassIdAndStatus(UUID classId, EnrollmentStatus status, Pageable pageable);
 
     List<Enrollment> findByStudentIdOrderByEnrolledAtDesc(UUID studentId);

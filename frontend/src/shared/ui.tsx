@@ -70,6 +70,11 @@ export function fieldErrors(error: unknown): FieldErrors {
   return error instanceof ApiError ? error.fieldErrors : {}
 }
 
+/** Errors under a JSON path prefix such as "sections[0].lessons[1].", keyed relative to it. */
+export function scopedErrors(errors: FieldErrors, prefix: string): FieldErrors {
+  return Object.fromEntries(Object.entries(errors).filter(([key]) => key.startsWith(prefix)).map(([key, value]) => [key.slice(prefix.length), value]))
+}
+
 export function Pagination({ page, size, total, onPage }: { page: number; size: number; total: number; onPage: (page: number) => void }) {
   const pages = Math.max(1, Math.ceil(total / size))
   if (pages <= 1) return null
