@@ -1,5 +1,6 @@
 package com.saasresearcher.learning.common;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 
@@ -9,6 +10,7 @@ public class ApiException extends RuntimeException {
     private final HttpStatus status;
     private final String code;
     private final transient Map<String, String> fieldErrors;
+    private final transient Map<String, Object> properties = new LinkedHashMap<>();
 
     public ApiException(HttpStatus status, String code, String detail, Map<String, String> fieldErrors) {
         super(detail);
@@ -44,6 +46,16 @@ public class ApiException extends RuntimeException {
 
     public static ApiException badRequest(String code, String detail) {
         return new ApiException(HttpStatus.BAD_REQUEST, code, detail);
+    }
+
+    /** Adds a safe extra member to the problem body, e.g. the current state after a conflict. */
+    public ApiException with(String name, Object value) {
+        properties.put(name, value);
+        return this;
+    }
+
+    public Map<String, Object> properties() {
+        return Map.copyOf(properties);
     }
 
     public HttpStatus status() {

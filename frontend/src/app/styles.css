@@ -100,6 +100,13 @@ a.button.primary { background: var(--primary); color: var(--primary-text); borde
 .document { margin: 0.5rem 0; }
 .pdf { width: 100%; height: 70vh; border: 1px solid var(--border); margin-top: 0.5rem; }
 .text-document { white-space: pre-wrap; overflow-wrap: anywhere; background: #f3f4f6; padding: 0.75rem; border-radius: 6px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.exam-header { position: sticky; top: 0; background: var(--bg); z-index: 2; padding: 0.5rem 0; }
+.timer { font-size: 1.4rem; font-variant-numeric: tabular-nums; font-weight: 700; margin: 0; }
+.questions { list-style: none; padding: 0; display: grid; gap: 1rem; }
+.prompt { white-space: pre-wrap; }
+.save-status { font-size: 0.9rem; color: var(--muted); display: inline-flex; gap: 0.5rem; align-items: center; }
+.save-status.error, .save-status.conflict { color: var(--danger); }
 .empty { color: var(--muted); padding: 1.5rem; text-align: center; border: 1px dashed var(--border); border-radius: 8px; }
 
 .table-scroll { overflow-x: auto; }

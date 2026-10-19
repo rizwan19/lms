@@ -22,6 +22,7 @@ tags:
   - name: classes
   - name: learning
   - name: exams
+  - name: attempts
 paths:
   /auth/csrf:
     get:
@@ -625,6 +626,58 @@ paths:
         '200': { description: Assignment, content: { application/json: { schema: { $ref: '#/components/schemas/ExamAssignment' } } } }
         '400': { $ref: '#/components/responses/Problem' }
         '409': { $ref: '#/components/responses/Problem' }
+  /me/enrollments/{id}/exams:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [attempts]
+      summary: Own exams for an enrollment with own attempts (no keys, no unpublished scores)
+      responses:
+        '200': { description: Exams, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/StudentExam' } } } } }
+  /exam-assignments/{id}/attempts:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [attempts]
+      summary: Start an attempt, or return the one in progress; deadline = min(start + duration, closing time)
+      responses:
+        '200': { description: Attempt, content: { application/json: { schema: { $ref: '#/components/schemas/AttemptView' } } } }
+        '403': { $ref: '#/components/responses/Problem' }
+        '409': { description: EXAM_NOT_OPEN or ATTEMPT_LIMIT_REACHED, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /attempts/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [attempts]
+      summary: Own attempt; an expired attempt is finalized from saved answers first
+      responses:
+        '200': { description: Attempt, content: { application/json: { schema: { $ref: '#/components/schemas/AttemptView' } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+  /attempts/{id}/answers/{questionId}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+      - { name: questionId, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [attempts]
+      summary: Save one answer with expected revision (0 creates)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [expectedRevision]
+              properties:
+                expectedRevision: { type: integer }
+                selectedOptionIds: { type: array, items: { type: string, format: uuid } }
+                writtenText: { type: [string, 'null'], maxLength: 20000 }
+      responses:
+        '200': { description: Durably saved, content: { application/json: { schema: { type: object, properties: { questionId: { type: string, format: uuid }, revision: { type: integer }, savedAt: { type: string, format: date-time } } } } } }
+        '409': { description: ANSWER_REVISION_CONFLICT (body.current holds the saved answer), ATTEMPT_EXPIRED or ATTEMPT_CLOSED, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
+  /attempts/{id}/submit:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [attempts]
+      summary: Finalize once from saved answers; repeated calls return the same outcome
+      responses:
+        '200': { description: Outcome, content: { application/json: { schema: { type: object, properties: { attemptId: { type: string, format: uuid }, status: { type: string }, finalizedReason: { type: string, enum: [SUBMITTED, EXPIRED] }, finalizedAt: { type: string, format: date-time } } } } } }
 components:
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -1034,3 +1087,37 @@ components:
         required: { type: boolean }
         schedule: { $ref: '#/components/schemas/ScheduleInput' }
         revision: { type: integer }
+    StudentExam:
+      type: object
+      properties:
+        assignmentId: { type: string, format: uuid }
+        title: { type: string }
+        required: { type: boolean }
+        questionCount: { type: integer }
+        maxPoints: { type: number }
+        opensAt: { type: [string, 'null'], format: date-time }
+        closesAt: { type: [string, 'null'], format: date-time }
+        durationMinutes: { type: [integer, 'null'] }
+        maxAttempts: { type: integer }
+        attemptsUsed: { type: integer }
+        activeAttemptId: { type: [string, 'null'], format: uuid }
+        canStart: { type: boolean }
+        attempts: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, attemptNumber: { type: integer }, status: { type: string }, finalizedAt: { type: [string, 'null'], format: date-time } } } }
+    AttemptView:
+      type: object
+      description: Student-safe; excludes keys, explanations, grading notes and unpublished results
+      properties:
+        id: { type: string, format: uuid }
+        assignmentId: { type: string, format: uuid }
+        enrollmentId: { type: string, format: uuid }
+        examTitle: { type: string }
+        instructions: { type: string }
+        attemptNumber: { type: integer }
+        maxAttempts: { type: integer }
+        status: { type: string, enum: [IN_PROGRESS, SUBMITTED, AWAITING_GRADING, GRADED] }
+        startedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+        serverNow: { type: string, format: date-time }
+        finalizedAt: { type: [string, 'null'], format: date-time }
+        questions: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, position: { type: integer }, type: { $ref: '#/components/schemas/QuestionType' }, prompt: { type: string }, points: { type: number }, options: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, label: { type: string } } } } } } }
+        answers: { type: array, items: { type: object, properties: { questionId: { type: string, format: uuid }, selectedOptionIds: { type: array, items: { type: string, format: uuid } }, writtenText: { type: [string, 'null'] }, revision: { type: integer }, savedAt: { type: string, format: date-time } } } }

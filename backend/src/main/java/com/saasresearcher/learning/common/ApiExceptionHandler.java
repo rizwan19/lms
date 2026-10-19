@@ -24,8 +24,9 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(ApiException.class)
     ResponseEntity<ProblemDetail> handleApi(ApiException ex) {
-        return ResponseEntity.status(ex.status())
-                .body(ProblemResponses.problem(ex.status(), ex.code(), ex.getMessage(), ex.fieldErrors()));
+        ProblemDetail problem = ProblemResponses.problem(ex.status(), ex.code(), ex.getMessage(), ex.fieldErrors());
+        ex.properties().forEach(problem::setProperty);
+        return ResponseEntity.status(ex.status()).body(problem);
     }
 
     @ExceptionHandler(OptimisticLockingFailureException.class)

@@ -3,6 +3,7 @@ package com.saasresearcher.learning.classrooms.internal;
 import com.saasresearcher.learning.classrooms.api.ClassDirectory;
 import com.saasresearcher.learning.classrooms.api.ClassInfo;
 import com.saasresearcher.learning.common.ApiException;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,5 +29,11 @@ class ClassDirectoryService implements ClassDirectory {
     @Transactional(readOnly = true)
     public boolean hasEnrollments(UUID classId) {
         return enrollments.existsByClassId(classId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Optional<UUID> enrollmentOf(UUID classId, UUID studentId) {
+        return enrollments.findByClassIdAndStudentId(classId, studentId).map(Enrollment::id);
     }
 }

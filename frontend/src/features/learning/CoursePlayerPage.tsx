@@ -7,6 +7,7 @@ import { CourseOutline } from '../courses/CourseOutline'
 import { ExternalVideo, LessonContent } from '../courses/LessonContent'
 import { DocumentViewer } from './DocumentViewer'
 import { ProgressBar } from './ProgressBar'
+import { EnrollmentExams } from '../assessments/EnrollmentExams'
 import type { Player } from './types'
 import { useProgressSaver } from './useProgressSaver'
 import { VideoPlayer } from './VideoPlayer'
@@ -47,6 +48,7 @@ export function CoursePlayerPage() {
         <Link to="/student">My learning</Link>
       </div>
       <ProgressBar summary={summary} />
+      <EnrollmentExams enrollmentId={id} />
       <div className="player">
         <CourseOutline
           sections={course.sections}

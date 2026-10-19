@@ -55,3 +55,40 @@ export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   TRUE_FALSE: 'True / false',
   WRITTEN: 'Written answer',
 }
+
+export type AttemptStatus = 'IN_PROGRESS' | 'SUBMITTED' | 'AWAITING_GRADING' | 'GRADED'
+
+export type StudentExam = {
+  assignmentId: string
+  title: string
+  required: boolean
+  questionCount: number
+  maxPoints: number
+  opensAt: string | null
+  closesAt: string | null
+  durationMinutes: number | null
+  maxAttempts: number
+  attemptsUsed: number
+  activeAttemptId: string | null
+  canStart: boolean
+  attempts: { id: string; attemptNumber: number; status: AttemptStatus; finalizedAt: string | null }[]
+}
+
+export type SavedAnswer = { questionId: string; selectedOptionIds: string[]; writtenText: string | null; revision: number; savedAt: string }
+
+export type Attempt = {
+  id: string
+  assignmentId: string
+  enrollmentId: string
+  examTitle: string
+  instructions: string
+  attemptNumber: number
+  maxAttempts: number
+  status: AttemptStatus
+  startedAt: string
+  expiresAt: string
+  serverNow: string
+  finalizedAt: string | null
+  questions: { id: string; position: number; type: QuestionType; prompt: string; points: number; options: { id: string; label: string }[] }[]
+  answers: SavedAnswer[]
+}
