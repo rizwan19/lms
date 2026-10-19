@@ -1,0 +1,17 @@
+Backup/restore drill, 2026-10-20, Docker Compose on Colima (arm64), small dataset (5 users, 2 media files, ~160 KB archive)
+
+1. In-place upgrade of the running stack to the build with migration V013: `docker compose ... up -d --build app web`
+   -> exit 0 in 28 s (cached image layers); flyway_schema_history 011, 012, 013 success; readiness UP.
+2. scripts/backup.sh (PSQL/PG_DUMP via docker exec, MEDIA_EXPORT_CMD="docker cp <app>:/data/media/.")
+   -> exit 0 in ~1 s; archive verified; maintenance switched back off.
+3. Fresh Compose project with empty volumes (LEARNING_JOBS_ENABLED=false, no SMTP);
+   scripts/restore.sh <archive> --target isolated -> exit 0; media copied into the new volume and chowned.
+   Restore + start: 11 s, plus ~15 s application start-up.
+4. Row counts source/restored: users 5/5, media_assets 2/2, enrollments 2/2.
+5. Installation smoke test against the restored instance (port 8090): 1 passed.
+
+Automated equivalent: backend RecoverySmokeIT (fixture with video, PDF, mixed exam, published grade, issued
+certificate restored into a second PostgreSQL and a second application instance; wrong key, corrupt archive, missing
+media and live target refused; maintenance pauses mutations and job claims) - 4 tests passed.
+
+Not measured: large media sets (timings scale with media size and disk/network throughput) and S3-mode export.

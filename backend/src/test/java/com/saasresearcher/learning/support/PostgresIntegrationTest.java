@@ -26,7 +26,7 @@ public abstract class PostgresIntegrationTest {
     public static final String SETUP_TOKEN = "test-setup-token";
     public static final String PASSWORD = "correct horse battery";
 
-    private static final List<String> PRESERVED_TABLES = List.of("flyway_schema_history", "institution_settings");
+    private static final List<String> PRESERVED_TABLES = List.of("flyway_schema_history", "institution_settings", "system_state");
 
     @LocalServerPort
     protected int port;
@@ -65,8 +65,10 @@ public abstract class PostgresIntegrationTest {
         // institution_settings references media, so the cascade may empty it; restore the singleton.
         jdbc.sql("""
                 insert into institution_settings (id, name, timezone, updated_at) values (1, 'Learning Portal', 'UTC', now())
-                on conflict (id) do update set name = excluded.name, timezone = excluded.timezone, logo_asset_id = null
+                on conflict (id) do update set name = excluded.name, timezone = excluded.timezone, logo_asset_id = null,
+                    certificate_verification_enabled = false, verification_shows_student = false
                 """).update();
+        jdbc.sql("update system_state set maintenance = false, reason = null").update();
     }
 
     /** A new client with its own cookie jar, i.e. a separate browser session. */

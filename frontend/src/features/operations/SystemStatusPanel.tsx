@@ -1,8 +1,9 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api, type Page } from '../../shared/api'
-import { formatDateTime, QueryState } from '../../shared/ui'
+import { ErrorMessage, formatDateTime, QueryState } from '../../shared/ui'
 
 type SystemStatus = { emailConfigured: boolean; failedJobs: number }
+type Maintenance = { active: boolean; reason: string | null; updatedAt: string }
 type FailedJob = { id: string; type: string; attempts: number; lastError: string | null; failedAt: string }
 
 /** Administrator view of delivery health: SMTP configuration and terminally failed jobs. */
@@ -14,9 +15,25 @@ export function SystemStatusPanel() {
     enabled: (status.data?.failedJobs ?? 0) > 0,
   })
 
+  const queryClient = useQueryClient()
+  const maintenance = useQuery({ queryKey: ['maintenance'], queryFn: () => api.get<Maintenance>('/admin/maintenance') })
+  const toggle = useMutation({
+    mutationFn: (active: boolean) => api.put<Maintenance>('/admin/maintenance', { active, reason: active ? 'Manual maintenance' : null }),
+    onSuccess: (state) => queryClient.setQueryData(['maintenance'], state),
+  })
+
   return (
     <section className="card" aria-labelledby="system-status">
       <h2 id="system-status">System status</h2>
+      {maintenance.data && (
+        <p className={maintenance.data.active ? 'notice' : undefined}>
+          {maintenance.data.active ? `Maintenance mode is on (${maintenance.data.reason ?? 'no reason'}): changes are paused.` : 'Maintenance mode is off.'}{' '}
+          <button type="button" onClick={() => toggle.mutate(!maintenance.data.active)}>
+            {maintenance.data.active ? 'End maintenance' : 'Start maintenance'}
+          </button>
+        </p>
+      )}
+      <ErrorMessage error={toggle.error} />
       <QueryState query={status}>
         {(data) => (
           <>

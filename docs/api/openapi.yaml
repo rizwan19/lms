@@ -875,6 +875,18 @@ paths:
       responses:
         '200': { description: CSV, content: { text/csv: { schema: { type: string } } } }
         '404': { $ref: '#/components/responses/Problem' }
+  /admin/maintenance:
+    get:
+      tags: [operations]
+      summary: Maintenance switch state (administrator)
+      responses:
+        '200': { description: State, content: { application/json: { schema: { type: object, properties: { active: { type: boolean }, reason: { type: [string, 'null'] }, updatedAt: { type: string, format: date-time } } } } } }
+    put:
+      tags: [operations]
+      summary: Turn maintenance on or off; while on, mutations return 503 MAINTENANCE and jobs are not claimed
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [active], properties: { active: { type: boolean }, reason: { type: [string, 'null'] } } } } } }
+      responses:
+        '200': { description: State }
 components:
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }

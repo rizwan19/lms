@@ -1,0 +1,13 @@
+{
+  "description": "Recovery fixture for RecoverySmokeIT: everything a restore must bring back intact.",
+  "teacher": "recovery.teacher",
+  "student": "recovery.student",
+  "outsider": "recovery.outsider",
+  "course": "Recovery course",
+  "videoLesson": "Watch the experiment",
+  "documentLesson": "Read the worksheet",
+  "exam": "Recovery exam",
+  "essayPoints": "3",
+  "expectedEarned": "4",
+  "certificate": "ISSUED"
+}
