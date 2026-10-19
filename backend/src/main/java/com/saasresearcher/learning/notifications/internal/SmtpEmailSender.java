@@ -8,15 +8,16 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
 
-/** SMTP delivery via spring.mail.*; unconfigured when no mail host is set. */
+/** SMTP delivery via spring.mail.*; unconfigured when the mail host is unset or blank. */
 @Component
 class SmtpEmailSender implements EmailSender {
 
     private final JavaMailSender mailSender;
     private final String from;
 
-    SmtpEmailSender(ObjectProvider<JavaMailSender> mailSender, @Value("${learning.mail.from:}") String from) {
-        this.mailSender = mailSender.getIfAvailable();
+    SmtpEmailSender(ObjectProvider<JavaMailSender> mailSender, @Value("${spring.mail.host:}") String host,
+            @Value("${learning.mail.from:}") String from) {
+        this.mailSender = host.isBlank() ? null : mailSender.getIfAvailable();
         this.from = from;
     }
 

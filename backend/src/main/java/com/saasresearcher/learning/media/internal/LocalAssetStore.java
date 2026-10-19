@@ -21,10 +21,12 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.UUID;
 import java.util.regex.Pattern;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /** Private filesystem storage: writes to a staging file, then atomically renames into place. */
 @Component
+@ConditionalOnProperty(name = "learning.storage.mode", havingValue = "local", matchIfMissing = true)
 class LocalAssetStore implements AssetStore {
 
     private static final Pattern KEY = Pattern.compile("^[a-z0-9]+(/[a-z0-9-]+)+$");
@@ -74,6 +76,13 @@ class LocalAssetStore implements AssetStore {
     @Override
     public void delete(String key) throws IOException {
         Files.deleteIfExists(resolve(key));
+    }
+
+    @Override
+    public void checkAvailable() throws IOException {
+        if (!Files.isDirectory(root) || !Files.isWritable(root)) {
+            throw new IOException("Media directory is not writable: " + root);
+        }
     }
 
     /** Keys are application-generated; anything else (including traversal attempts) is refused. */

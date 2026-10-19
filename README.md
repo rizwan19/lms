@@ -22,8 +22,8 @@ docs/      API contract, runbooks and dependency records
 Requirements: Java 21, Node.js 22 (>= 22.22), Docker, ffprobe (FFmpeg).
 
 ```bash
-# Database
-docker compose -f deploy/compose.yml up -d postgres
+# Database (development)
+docker compose -f deploy/compose.yml -f deploy/compose.dev.yml up -d postgres
 
 # Backend (http://localhost:8080, management/health on :8081)
 cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
@@ -34,6 +34,12 @@ cd backend && ./mvnw spring-boot:test-run
 # Frontend (http://localhost:5173, proxies /api to :8080)
 cd frontend && npm ci && npm run dev
 ```
+
+## Installation
+
+- Docker Compose: [docs/runbooks/install-docker.md](docs/runbooks/install-docker.md)
+- Manual Ubuntu VPS: [docs/runbooks/install-vps.md](docs/runbooks/install-vps.md)
+- Settings: [docs/runbooks/configuration.md](docs/runbooks/configuration.md)
 
 ## Verification
 

@@ -1,0 +1,3 @@
+smoke/local-smoke-2.log:  1 passed (6.3s)
+smoke/local-smoke.log:  1 passed (5.9s)
+smoke/s3-smoke.log:  1 passed (5.1s)

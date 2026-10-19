@@ -1,0 +1,23 @@
+# /etc/systemd/system/learning-portal.service — manual VPS installation (see docs/runbooks/install-vps.md)
+[Unit]
+Description=Learning Portal
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=learning
+Group=learning
+EnvironmentFile=/etc/learning-portal/learning.env
+WorkingDirectory=/opt/learning-portal
+ExecStart=/usr/bin/java -XX:MaxRAMPercentage=60 -jar /opt/learning-portal/app.jar
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/learning-portal
+
+[Install]
+WantedBy=multi-user.target

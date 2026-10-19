@@ -1,0 +1,7 @@
+# Publishes PostgreSQL on localhost for development (backend run with the 'dev' profile).
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-learning}
+    ports:
+      - "127.0.0.1:5432:5432"

@@ -12,7 +12,8 @@ explicitly versioned libraries are pinned in `backend/pom.xml`. Frontend version
 | Maven | 3.9.16 via Maven Wrapper 3.3.4 | `backend/.mvn/wrapper/maven-wrapper.properties` |
 | Node.js | 22.x, >= 22.22.0 | Several current toolchain packages (react-router 8, jsdom 30) require >= 22.22; still within the major-22 baseline |
 | PostgreSQL | 17 (`postgres:17-alpine`) | Tests and development compose file |
-| ffprobe | FFmpeg 9.x | Required at runtime for video metadata validation |
+| ffprobe | FFmpeg 9.x (dev), 6.1 (Ubuntu 24.04 image) | Required at runtime for video metadata validation |
+| Container images | eclipse-temurin:21-jdk/jre-noble, node:22-bookworm-slim, caddy:2.10-alpine, postgres:17-alpine | Test S3 server: chrislusf/seaweedfs:3.97 |
 
 ## Backend (resolved by Spring Boot 4.1.1 BOM unless pinned)
 
@@ -34,6 +35,7 @@ explicitly versioned libraries are pinned in `backend/pom.xml`. Frontend version
 | Apache PDFBox (pinned) | 3.0.8 | Apache-2.0 |
 | ZXing core (pinned) | 3.5.4 | Apache-2.0 |
 | Noto Sans font (bundled) | 2022 release | SIL OFL 1.1 |
+| AWS SDK for Java v2 S3 (BOM pinned) | 2.56.0 | Apache-2.0 |
 | ArchUnit (pinned) | 1.5.1 | Apache-2.0 |
 
 ## Frontend (exact)

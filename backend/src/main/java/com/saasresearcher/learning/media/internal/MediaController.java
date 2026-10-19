@@ -10,9 +10,12 @@ import com.saasresearcher.learning.media.api.ByteRange;
 import com.saasresearcher.learning.media.api.MediaService;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.IOException;
+import java.net.URI;
+import java.util.Optional;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpRange;
@@ -59,8 +62,13 @@ class MediaController {
     ResponseEntity<StreamingResponseBody> content(@PathVariable UUID id, @RequestParam(defaultValue = "false") boolean download,
             @RequestHeader(value = HttpHeaders.RANGE, required = false) String rangeHeader, Actor actor) throws IOException {
         AuthorizedAsset asset = media.authorizeRead(id, actor);
-        long size = store.stat(asset.storageKey()).sizeBytes();
         HttpHeaders headers = deliveryHeaders(asset.metadata(), download);
+        Optional<URI> signed = store.presignedRead(asset.storageKey(), headers.getFirst(HttpHeaders.CONTENT_TYPE),
+                headers.getFirst(HttpHeaders.CONTENT_DISPOSITION));
+        if (signed.isPresent()) {
+            return ResponseEntity.status(HttpStatus.FOUND).location(signed.get()).cacheControl(CacheControl.noStore()).build();
+        }
+        long size = store.stat(asset.storageKey()).sizeBytes();
         ByteRange range = ByteRange.whole(size);
         HttpStatus status = HttpStatus.OK;
         if (rangeHeader != null) {

@@ -1,0 +1,30 @@
+# Manual VPS front door: copy to /etc/caddy/Caddyfile and replace learn.example.org.
+# The application listens on 127.0.0.1:8080; the built frontend lives in /var/www/learning-portal.
+learn.example.org {
+	encode zstd gzip
+
+	header {
+		?Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+
+	@upload path /api/v1/media
+	request_body @upload {
+		max_size 520MB
+	}
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8080 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		root * /var/www/learning-portal
+		try_files {path} /index.html
+		file_server
+	}
+}

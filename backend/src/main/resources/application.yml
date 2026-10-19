@@ -24,6 +24,7 @@ spring:
 
 server:
   port: ${LEARNING_PORT:8080}
+  address: ${LEARNING_BIND_ADDRESS:0.0.0.0}
   forward-headers-strategy: native
   servlet:
     session:
@@ -40,6 +41,8 @@ server:
 management:
   server:
     port: ${LEARNING_MANAGEMENT_PORT:8081}
+    # Health endpoints stay internal: never route this port through the public proxy.
+    address: ${LEARNING_MANAGEMENT_ADDRESS:127.0.0.1}
   endpoints:
     web:
       exposure:
@@ -50,7 +53,7 @@ management:
         enabled: true
       group:
         readiness:
-          include: readinessState,db
+          include: readinessState,db,storage
 
 logging:
   pattern:
@@ -63,6 +66,15 @@ learning:
     setup-token: ${LEARNING_SETUP_TOKEN:}
   mail:
     from: ${LEARNING_MAIL_FROM:}
+  storage:
+    mode: ${LEARNING_STORAGE_MODE:local}
+    s3:
+      endpoint: ${LEARNING_S3_ENDPOINT:}
+      region: ${LEARNING_S3_REGION:us-east-1}
+      bucket: ${LEARNING_S3_BUCKET:}
+      access-key: ${LEARNING_S3_ACCESS_KEY:}
+      secret-key: ${LEARNING_S3_SECRET_KEY:}
+      path-style: ${LEARNING_S3_PATH_STYLE:false}
   media:
     storage-root: ${LEARNING_MEDIA_ROOT:data/media}
     staging-dir: ${LEARNING_STAGING_DIR:data/staging}

@@ -1,0 +1,49 @@
+# Same-origin front door: serves the built React app and proxies /api to the application.
+# LEARNING_SITE_ADDRESS is the public host name (e.g. learn.example.org) for automatic HTTPS, or :80 for local tests.
+# LEARNING_MEDIA_ORIGIN is the S3 origin for presigned media in S3 mode; leave empty for local storage.
+{
+	servers {
+		timeouts {
+			read_body 30m
+		}
+	}
+}
+
+{$LEARNING_SITE_ADDRESS::80} {
+	encode zstd gzip
+
+	header {
+		?Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: {$LEARNING_MEDIA_ORIGIN}; media-src 'self' {$LEARNING_MEDIA_ORIGIN}; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com {$LEARNING_MEDIA_ORIGIN}; connect-src 'self' {$LEARNING_MEDIA_ORIGIN}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		-Server
+	}
+
+	# Uploads: videos up to 500 MiB stream through; everything else is small.
+	@upload path /api/v1/media
+	request_body @upload {
+		max_size 520MB
+	}
+	@api_other {
+		path /api/*
+		not path /api/v1/media
+	}
+	request_body @api_other {
+		max_size 4MB
+	}
+
+	handle /api/* {
+		reverse_proxy {$LEARNING_APP_UPSTREAM:app:8080} {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		root * /srv
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		try_files {path} /index.html
+		file_server
+	}
+}

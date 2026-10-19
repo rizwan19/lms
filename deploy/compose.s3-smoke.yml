@@ -1,0 +1,23 @@
+# Installation smoke test in S3 mode against a local S3-compatible server (SeaweedFS). Not for production.
+# The bucket host resolves to the S3 server for both the app (extra_hosts) and the browser (localtest.me -> 127.0.0.1).
+services:
+  s3:
+    image: chrislusf/seaweedfs:3.97
+    command: ["server", "-s3", "-s3.port=8333", "-s3.config=/etc/s3.json", "-dir=/data", "-ip.bind=0.0.0.0"]
+    configs:
+      - source: s3-config
+        target: /etc/s3.json
+    ports:
+      - "8333:8333"
+
+  app:
+    extra_hosts:
+      - "s3.localtest.me:host-gateway"
+    depends_on:
+      s3:
+        condition: service_started
+
+configs:
+  s3-config:
+    content: |
+      {"identities":[{"name":"learning","credentials":[{"accessKey":"smoke-access","secretKey":"smoke-secret-key"}],"actions":["Admin","Read","Write","List"]}]}
