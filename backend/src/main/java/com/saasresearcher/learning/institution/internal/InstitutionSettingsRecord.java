@@ -27,6 +27,12 @@ class InstitutionSettingsRecord {
     @Column(name = "logo_asset_id")
     private UUID logoAssetId;
 
+    @Column(name = "certificate_verification_enabled", nullable = false)
+    private boolean certificateVerification;
+
+    @Column(name = "verification_shows_student", nullable = false)
+    private boolean verificationShowsStudent;
+
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
@@ -45,6 +51,19 @@ class InstitutionSettingsRecord {
     void setLogo(UUID logoAssetId, Instant now) {
         this.logoAssetId = logoAssetId;
         this.updatedAt = now;
+    }
+
+    void setVerification(boolean enabled, boolean showsStudent) {
+        this.certificateVerification = enabled;
+        this.verificationShowsStudent = showsStudent;
+    }
+
+    boolean certificateVerification() {
+        return certificateVerification;
+    }
+
+    boolean verificationShowsStudent() {
+        return verificationShowsStudent;
     }
 
     UUID logoAssetId() {

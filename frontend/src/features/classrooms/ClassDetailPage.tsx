@@ -12,6 +12,7 @@ import { CredentialNotice } from '../accounts/CredentialNotice'
 import type { Account } from '../accounts/types'
 import { ExamSchedule } from '../assessments/ExamScheduleDialog'
 import { RosterImportDialog } from './RosterImportDialog'
+import { ClassCertificates } from '../certificates/ClassCertificates'
 import { ScheduleFields } from './ScheduleFields'
 import type { ClassDetail, EnrollmentStatus, RosterRow } from './types'
 
@@ -30,6 +31,7 @@ export function ClassDetailPage() {
           <Teachers item={item} />
           <ExamSchedule classId={item.id} archived={item.status === 'ARCHIVED'} />
           <Roster classId={item.id} archived={item.status === 'ARCHIVED'} />
+          <ClassCertificates classId={item.id} />
         </section>
       )}
     </QueryState>

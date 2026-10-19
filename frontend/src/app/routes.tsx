@@ -22,6 +22,8 @@ import { ExamAttemptPage } from '../features/assessments/ExamAttemptPage'
 import { GradingQueuePage } from '../features/grading/GradingQueuePage'
 import { GradeAttemptPage } from '../features/grading/GradeAttemptPage'
 import { StudentResultsPage } from '../features/results/StudentResultsPage'
+import { StudentCertificatesPage } from '../features/certificates/StudentCertificatesPage'
+import { VerifyCertificatePage } from '../features/certificates/VerifyCertificatePage'
 
 function Home() {
   const { activeRole } = useSession()
@@ -56,6 +58,8 @@ export const routes: RouteObject[] = [
       { path: '/teacher/grading', element: <RequireAuth roles={STAFF}><GradingQueuePage /></RequireAuth> },
       { path: '/teacher/grading/:attemptId', element: <RequireAuth roles={STAFF}><GradeAttemptPage /></RequireAuth> },
       { path: '/student/results', element: <RequireAuth roles={['STUDENT']}><StudentResultsPage /></RequireAuth> },
+      { path: '/student/certificates', element: <RequireAuth roles={['STUDENT']}><StudentCertificatesPage /></RequireAuth> },
+      { path: '/verify/:token', element: <VerifyCertificatePage /> },
       { path: '*', element: <p>Page not found.</p> },
     ],
   },

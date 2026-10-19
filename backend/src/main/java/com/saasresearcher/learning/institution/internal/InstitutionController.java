@@ -32,16 +32,19 @@ class InstitutionController {
     @PutMapping
     InstitutionView update(@Valid @RequestBody UpdateInstitution command, Actor actor) {
         return InstitutionView.of(institution.update(command.name(), Timezones.parse("timezone", command.timezone()), command.logoAssetId(),
-                command.expectedRevision(), actor));
+                command.certificateVerification(), command.verificationShowsStudent(), command.expectedRevision(), actor));
     }
 
-    record UpdateInstitution(@NotBlank @Size(max = 200) String name, @NotBlank String timezone, UUID logoAssetId, long expectedRevision) {
+    record UpdateInstitution(@NotBlank @Size(max = 200) String name, @NotBlank String timezone, UUID logoAssetId, boolean certificateVerification,
+            boolean verificationShowsStudent, long expectedRevision) {
     }
 
-    record InstitutionView(String name, String timezone, UUID logoAssetId, long revision) {
+    record InstitutionView(String name, String timezone, UUID logoAssetId, boolean certificateVerification, boolean verificationShowsStudent,
+            long revision) {
 
         static InstitutionView of(InstitutionProfile profile) {
-            return new InstitutionView(profile.name(), profile.timezone().getId(), profile.logoAssetId(), profile.revision());
+            return new InstitutionView(profile.name(), profile.timezone().getId(), profile.logoAssetId(), profile.certificateVerification(),
+                    profile.verificationShowsStudent(), profile.revision());
         }
     }
 }

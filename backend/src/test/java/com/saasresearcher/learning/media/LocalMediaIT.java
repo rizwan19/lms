@@ -127,7 +127,8 @@ class LocalMediaIT extends PostgresIntegrationTest {
         TestUser student = createUser(admin, "logo.viewer", null, "STUDENT");
         assertThat(student.session().get("/media/" + id + "/content").status()).isEqualTo(404);
         long revision = admin.get("/institution").json().path("revision").asLong();
-        admin.put("/institution", Map.of("name", "Test School", "timezone", "Asia/Dhaka", "logoAssetId", id, "expectedRevision", revision)).expect(200);
+        admin.put("/institution", Map.of("name", "Test School", "timezone", "Asia/Dhaka", "logoAssetId", id, "certificateVerification", false,
+                "verificationShowsStudent", false, "expectedRevision", revision)).expect(200);
         assertThat(student.session().get("/media/" + id + "/content").status()).isEqualTo(200);
     }
 

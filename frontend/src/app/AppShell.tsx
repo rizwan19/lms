@@ -24,6 +24,7 @@ const NAVIGATION: Record<Role, { to: string; label: string }[]> = {
   STUDENT: [
     { to: '/student', label: 'My learning' },
     { to: '/student/results', label: 'Results' },
+    { to: '/student/certificates', label: 'Certificates' },
   ],
 }
 

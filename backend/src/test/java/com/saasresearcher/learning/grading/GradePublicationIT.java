@@ -153,8 +153,8 @@ class GradePublicationIT extends PostgresIntegrationTest {
 
         assertThat(publishedEarned()).isEqualByComparingTo("6");
         assertThat(jdbc.sql("select count(*) from grade_revisions where status = 'SUPERSEDED'").query(Long.class).single()).isEqualTo(1);
-        assertThat(jdbc.sql("select metadata->>'previous' from audit_events where action = 'grade.published' order by occurred_at desc, id limit 1")
-                .query(String.class).single()).isIn("3.00", "3");
+        assertThat(jdbc.sql("select count(*) from audit_events where action = 'grade.published' and metadata->>'previous' = '3.00'")
+                .query(Long.class).single()).isEqualTo(1);
     }
 
     private record Graded(ExamClassFixture fixture, String id, UUID essay) {

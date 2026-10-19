@@ -24,6 +24,7 @@ tags:
   - name: exams
   - name: attempts
   - name: grading
+  - name: certificates
 paths:
   /auth/csrf:
     get:
@@ -768,6 +769,72 @@ paths:
                   completionId: { type: [string, 'null'], format: uuid }
                   lessons: { $ref: '#/components/schemas/LessonSummary' }
                   exams: { type: array, items: { type: object, properties: { assignmentId: { type: string, format: uuid }, title: { type: string }, publishedPass: { type: boolean }, pendingGrading: { type: boolean } } } }
+  /me/certificates:
+    get:
+      tags: [certificates]
+      summary: Own certificates (never includes the verification token)
+      responses:
+        '200': { description: Certificates, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Certificate' } } } } }
+  /certificates:
+    get:
+      tags: [certificates]
+      summary: Certificates of a class (class teachers and administrators)
+      parameters: [{ name: classId, in: query, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: Certificates, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Certificate' } } } } }
+  /certificates/{id}/download:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [certificates]
+      summary: PDF for the owner (also after withdrawal) or the class's teachers; issued certificates only
+      responses:
+        '200': { description: PDF, content: { application/pdf: { schema: { type: string, format: binary } } } }
+        '404': { $ref: '#/components/responses/Problem' }
+        '409': { $ref: '#/components/responses/Problem' }
+  /certificates/{id}/revoke:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [certificates]
+      summary: Revoke with a reason (class teachers and administrators; audited)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, maxLength: 1000 } } } } } }
+      responses:
+        '200': { description: Certificate, content: { application/json: { schema: { $ref: '#/components/schemas/Certificate' } } } }
+  /certificates/{id}/reinstate:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [certificates]
+      summary: Administrator reinstatement with a reason; requires an achieved completion and re-renders from the original snapshot
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, maxLength: 1000 } } } } } }
+      responses:
+        '200': { description: Certificate, content: { application/json: { schema: { $ref: '#/components/schemas/Certificate' } } } }
+        '409': { $ref: '#/components/responses/Problem' }
+  /certificates/{id}/retry:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [certificates]
+      summary: Retry a failed render
+      responses:
+        '200': { description: Certificate, content: { application/json: { schema: { $ref: '#/components/schemas/Certificate' } } } }
+  /public/certificates/{token}:
+    parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
+    get:
+      tags: [certificates]
+      summary: Public verification (404 when disabled or unknown); minimal data, student only when enabled at issuance
+      security: []
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [VALID, REVOKED] }
+                  institution: { type: [string, 'null'] }
+                  course: { type: [string, 'null'] }
+                  completedOn: { type: [string, 'null'], format: date }
+                  student: { type: [string, 'null'] }
+        '404': { $ref: '#/components/responses/Problem' }
 components:
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -874,11 +941,11 @@ components:
         expiresAt: { type: string, format: date-time }
     Institution:
       type: object
-      properties: { name: { type: string }, timezone: { type: string }, logoAssetId: { type: [string, 'null'], format: uuid }, revision: { type: integer } }
+      properties: { name: { type: string }, timezone: { type: string }, logoAssetId: { type: [string, 'null'], format: uuid }, certificateVerification: { type: boolean }, verificationShowsStudent: { type: boolean }, revision: { type: integer } }
     UpdateInstitution:
       type: object
-      required: [name, timezone, expectedRevision]
-      properties: { name: { type: string }, timezone: { type: string }, logoAssetId: { type: [string, 'null'], format: uuid }, expectedRevision: { type: integer } }
+      required: [name, timezone, certificateVerification, verificationShowsStudent, expectedRevision]
+      properties: { name: { type: string }, timezone: { type: string }, logoAssetId: { type: [string, 'null'], format: uuid }, certificateVerification: { type: boolean }, verificationShowsStudent: { type: boolean }, expectedRevision: { type: integer } }
     AssetPurpose: { type: string, enum: [VIDEO, DOCUMENT, BRANDING_IMAGE] }
     Asset:
       type: object
@@ -1211,3 +1278,15 @@ components:
         finalizedAt: { type: [string, 'null'], format: date-time }
         questions: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, position: { type: integer }, type: { $ref: '#/components/schemas/QuestionType' }, prompt: { type: string }, points: { type: number }, options: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, label: { type: string } } } } } } }
         answers: { type: array, items: { type: object, properties: { questionId: { type: string, format: uuid }, selectedOptionIds: { type: array, items: { type: string, format: uuid } }, writtenText: { type: [string, 'null'] }, revision: { type: integer }, savedAt: { type: string, format: date-time } } } }
+    Certificate:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        studentName: { type: string }
+        courseTitle: { type: string }
+        edition: { type: integer }
+        completedOn: { type: string, format: date }
+        status: { type: string, enum: [PENDING_RENDER, ISSUED, RENDER_FAILED, REVOKED] }
+        issuedAt: { type: [string, 'null'], format: date-time }
+        renderError: { type: [string, 'null'] }
+        revokedReason: { type: [string, 'null'] }

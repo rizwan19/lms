@@ -4,9 +4,13 @@ import com.saasresearcher.learning.common.Actor;
 import com.saasresearcher.learning.common.ApiException;
 import com.saasresearcher.learning.media.api.AssetAccessPolicy;
 import com.saasresearcher.learning.media.api.AssetMetadata;
+import com.saasresearcher.learning.media.api.AssetStore;
+import com.saasresearcher.learning.media.api.ByteRange;
 import com.saasresearcher.learning.media.api.AuthorizedAsset;
 import com.saasresearcher.learning.media.api.MediaCatalog;
 import com.saasresearcher.learning.media.api.MediaService;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.UUID;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
@@ -17,11 +21,20 @@ import org.springframework.transaction.annotation.Transactional;
 class MediaAccessService implements MediaService, MediaCatalog {
 
     private final MediaAssetRepository assets;
+    private final AssetStore store;
     private final ObjectProvider<AssetAccessPolicy> policies;
 
-    MediaAccessService(MediaAssetRepository assets, ObjectProvider<AssetAccessPolicy> policies) {
+    MediaAccessService(MediaAssetRepository assets, AssetStore store, ObjectProvider<AssetAccessPolicy> policies) {
         this.assets = assets;
+        this.store = store;
         this.policies = policies;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public InputStream open(UUID assetId) throws IOException {
+        MediaAsset asset = assets.findById(assetId).filter(MediaAsset::isAvailable).orElseThrow(ApiException::notFound);
+        return store.openRange(asset.storageKey(), ByteRange.whole(store.stat(asset.storageKey()).sizeBytes())).content();
     }
 
     @Override

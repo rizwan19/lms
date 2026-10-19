@@ -31,6 +31,9 @@ explicitly versioned libraries are pinned in `backend/pom.xml`. Frontend version
 | Testcontainers | BOM-managed 2.x | MIT |
 | OWASP Java HTML Sanitizer (pinned) | 20261011.1 | Apache-2.0 |
 | Apache Commons CSV (pinned) | 1.14.1 | Apache-2.0 |
+| Apache PDFBox (pinned) | 3.0.8 | Apache-2.0 |
+| ZXing core (pinned) | 3.5.4 | Apache-2.0 |
+| Noto Sans font (bundled) | 2022 release | SIL OFL 1.1 |
 | ArchUnit (pinned) | 1.5.1 | Apache-2.0 |
 
 ## Frontend (exact)

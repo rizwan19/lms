@@ -8,7 +8,7 @@ const student = { id: 's1', username: 'student', displayName: 'Student', email: 
 test('pending results never show a score; published ones show feedback without keys', async () => {
   mockApi({
     'GET /auth/me': { body: student },
-    'GET /institution': { body: { name: 'School', timezone: 'UTC', logoAssetId: null, revision: 0 } },
+    'GET /institution': { body: { name: 'School', timezone: 'UTC', logoAssetId: null, certificateVerification: false, verificationShowsStudent: false, revision: 0 } },
     'GET /notifications': { body: { items: [], page: 0, size: 20, total: 0 } },
     'GET /me/results': {
       body: [

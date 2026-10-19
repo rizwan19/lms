@@ -21,6 +21,8 @@
         <archunit.version>1.5.1</archunit.version>
         <owasp-html-sanitizer.version>20261011.1</owasp-html-sanitizer.version>
         <commons-csv.version>1.14.1</commons-csv.version>
+        <pdfbox.version>3.0.8</pdfbox.version>
+        <zxing.version>3.5.4</zxing.version>
     </properties>
 
     <dependencies>
@@ -69,6 +71,16 @@
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-csv</artifactId>
             <version>${commons-csv.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>${pdfbox.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.google.zxing</groupId>
+            <artifactId>core</artifactId>
+            <version>${zxing.version}</version>
         </dependency>
         <dependency>
             <groupId>org.postgresql</groupId>

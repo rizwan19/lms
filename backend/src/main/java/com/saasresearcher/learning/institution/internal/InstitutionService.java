@@ -49,7 +49,8 @@ class InstitutionService implements InstitutionSettings {
     }
 
     @Transactional
-    InstitutionProfile update(String name, ZoneId timezone, UUID logoAssetId, long expectedRevision, Actor actor) {
+    InstitutionProfile update(String name, ZoneId timezone, UUID logoAssetId, boolean verification, boolean showsStudent, long expectedRevision,
+            Actor actor) {
         if (!actor.isAdministrator()) {
             throw ApiException.accessDenied("Only administrators can change institution settings");
         }
@@ -60,6 +61,7 @@ class InstitutionService implements InstitutionSettings {
         Revisions.require(expectedRevision, settings.version());
         settings.update(name, timezone, clock.instant());
         settings.setLogo(logoAssetId, clock.instant());
+        settings.setVerification(verification, showsStudent);
         repository.flush();
         audit.record(AuditEntry.success(actor.userId(), "institution.updated", "institution", null));
         return toProfile(settings);
@@ -75,6 +77,7 @@ class InstitutionService implements InstitutionSettings {
     }
 
     private static InstitutionProfile toProfile(InstitutionSettingsRecord settings) {
-        return new InstitutionProfile(settings.name(), settings.timezone(), settings.logoAssetId(), settings.version());
+        return new InstitutionProfile(settings.name(), settings.timezone(), settings.logoAssetId(), settings.certificateVerification(),
+                settings.verificationShowsStudent(), settings.version());
     }
 }

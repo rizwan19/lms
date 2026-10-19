@@ -11,7 +11,7 @@ export function InstitutionSettingsPage() {
   const queryClient = useQueryClient()
   const institution = useQuery({ queryKey: ['institution'], queryFn: () => api.get<Institution>('/institution') })
   const save = useMutation({
-    mutationFn: (body: { name: string; timezone: string; logoAssetId: string | null; expectedRevision: number }) => api.put<Institution>('/institution', body),
+    mutationFn: (body: Omit<Institution, 'revision'> & { expectedRevision: number }) => api.put<Institution>('/institution', body),
     onSuccess: (updated) => {
       queryClient.setQueryData(['institution'], updated)
       setLogo(undefined)
@@ -34,6 +34,8 @@ export function InstitutionSettingsPage() {
                 name: String(form.get('name')),
                 timezone: String(form.get('timezone')),
                 logoAssetId: logo === undefined ? settings.logoAssetId : logo,
+                certificateVerification: form.get('certificateVerification') === 'on',
+                verificationShowsStudent: form.get('verificationShowsStudent') === 'on',
                 expectedRevision: settings.revision,
               })
             }}
@@ -57,6 +59,18 @@ export function InstitutionSettingsPage() {
                 <p className="muted">No logo.</p>
               )}
               <UploadField id="logo" label="Upload logo (PNG or JPEG, up to 5 MiB)" purpose="BRANDING_IMAGE" onUploaded={(asset) => setLogo(asset.id)} />
+            </fieldset>
+            <fieldset>
+              <legend>Certificate verification</legend>
+              <label className="inline">
+                <input type="checkbox" name="certificateVerification" defaultChecked={settings.certificateVerification} /> Let anyone with a certificate&apos;s QR code
+                check that it is valid
+              </label>
+              <label className="inline">
+                <input type="checkbox" name="verificationShowsStudent" defaultChecked={settings.verificationShowsStudent} /> Show the student&apos;s name on the
+                verification page
+              </label>
+              <small className="muted">Applies to certificates issued after the change.</small>
             </fieldset>
             <ErrorMessage error={save.error} />
             {save.isSuccess && <p role="status">Saved.</p>}
