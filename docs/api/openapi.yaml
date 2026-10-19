@@ -23,6 +23,7 @@ tags:
   - name: learning
   - name: exams
   - name: attempts
+  - name: grading
 paths:
   /auth/csrf:
     get:
@@ -678,6 +679,77 @@ paths:
       summary: Finalize once from saved answers; repeated calls return the same outcome
       responses:
         '200': { description: Outcome, content: { application/json: { schema: { type: object, properties: { attemptId: { type: string, format: uuid }, status: { type: string }, finalizedReason: { type: string, enum: [SUBMITTED, EXPIRED] }, finalizedAt: { type: string, format: date-time } } } } } }
+  /grading:
+    get:
+      tags: [grading]
+      summary: Grading queue of a class (class teachers); unpublished work first
+      parameters:
+        - { name: classId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { type: string, enum: [PENDING, PUBLISHED, ALL], default: PENDING } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Size' }
+      responses:
+        '200': { description: Page of attempts }
+  /grading/attempts/{id}:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    get:
+      tags: [grading]
+      summary: Attempt with key, answers, current revision grades and revision history (staff only)
+      responses:
+        '200': { description: Grade view }
+        '404': { $ref: '#/components/responses/Problem' }
+  /grading/attempts/{id}/answers/{questionId}:
+    parameters:
+      - { $ref: '#/components/parameters/Id' }
+      - { name: questionId, in: path, required: true, schema: { type: string, format: uuid } }
+    put:
+      tags: [grading]
+      summary: Grade a written answer (0 to question points, 2 decimals) or add feedback (max 5000 characters); expected revision
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [expectedRevision], properties: { expectedRevision: { type: integer }, points: { type: [number, 'null'] }, feedback: { type: string } } } } } }
+      responses:
+        '200': { description: Grade }
+        '409': { $ref: '#/components/responses/Problem' }
+  /grading/attempts/{id}/finalize:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [grading]
+      summary: Sum grades once every written answer is graded (409 GRADING_INCOMPLETE otherwise)
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [expectedRevision], properties: { expectedRevision: { type: integer } } } } } }
+      responses:
+        '200': { description: Finalized revision }
+        '409': { $ref: '#/components/responses/Problem' }
+  /grading/attempts/{id}/publish:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [grading]
+      summary: Publish the finalized revision as an immutable result; supersedes the previous one
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [expectedRevision], properties: { expectedRevision: { type: integer } } } } } }
+      responses:
+        '200': { description: Published result }
+        '409': { $ref: '#/components/responses/Problem' }
+  /grading/attempts/{id}/regrade:
+    parameters: [{ $ref: '#/components/parameters/Id' }]
+    post:
+      tags: [grading]
+      summary: Open a new draft from the published grades with a reason (max 1000); students keep the old result until republication
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, maxLength: 1000 } } } } } }
+      responses:
+        '200': { description: New draft revision }
+        '409': { $ref: '#/components/responses/Problem' }
+  /me/results:
+    get:
+      tags: [grading]
+      summary: Own finalized attempts; PENDING results carry no score
+      responses:
+        '200': { description: Results }
+  /me/results/{attemptId}:
+    parameters: [{ name: attemptId, in: path, required: true, schema: { type: string, format: uuid } }]
+    get:
+      tags: [grading]
+      summary: Own published result with per-question points and feedback; keys and explanations only when the feedback policy releases them
+      responses:
+        '200': { description: Result }
+        '404': { $ref: '#/components/responses/Problem' }
 components:
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }

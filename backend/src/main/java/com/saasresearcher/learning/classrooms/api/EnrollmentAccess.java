@@ -22,4 +22,10 @@ public interface EnrollmentAccess {
 
     /** System lookup without an actor, for internal read models such as progress summaries. */
     EnrollmentView require(UUID enrollmentId);
+
+    /**
+     * System row lock on an enrollment for the caller's transaction. Everything that changes eligibility (progress,
+     * grade publication, completion) takes this lock first, before any attempt lock.
+     */
+    EnrollmentView lock(UUID enrollmentId);
 }

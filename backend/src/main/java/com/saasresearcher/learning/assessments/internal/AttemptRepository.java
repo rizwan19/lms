@@ -1,5 +1,6 @@
 package com.saasresearcher.learning.assessments.internal;
 
+import com.saasresearcher.learning.assessments.api.AttemptResults.OwnResult;
 import com.saasresearcher.learning.assessments.api.AttemptStatus;
 import com.saasresearcher.learning.assessments.api.QuestionType;
 import com.saasresearcher.learning.assessments.internal.AttemptRows.Answer;
@@ -138,6 +139,41 @@ class AttemptRepository {
                 .param("status", status.name()).param("reason", reason.name()).param("now", Timestamp.from(now))
                 .param("score", objectiveScore).param("id", attemptId)
                 .update();
+    }
+
+    /** Writes the published projection; pass compares exact values: earned * 100 >= passPercent * maximum. */
+    void recordPublished(UUID attemptId, UUID revisionId, BigDecimal earned, BigDecimal maximum, BigDecimal passPercent, Instant publishedAt) {
+        jdbc.sql("""
+                update exam_attempts set published_revision_id = :revision, published_earned = :earned, published_maximum = :maximum,
+                    published_passed = :passed, published_at = :at, status = 'GRADED', version = version + 1
+                where id = :id and status <> 'IN_PROGRESS'
+                """)
+                .param("revision", revisionId).param("earned", earned).param("maximum", maximum)
+                .param("passed", earned.multiply(BigDecimal.valueOf(100)).compareTo(passPercent.multiply(maximum)) >= 0)
+                .param("at", Timestamp.from(publishedAt)).param("id", attemptId)
+                .update();
+    }
+
+    boolean anyPublishedPass(UUID enrollmentId, UUID assignmentId) {
+        return jdbc.sql("select count(*) > 0 from exam_attempts where enrollment_id = :enrollment and assignment_id = :assignment and published_passed")
+                .param("enrollment", enrollmentId).param("assignment", assignmentId).query(Boolean.class).single();
+    }
+
+    List<OwnResult> resultsOf(UUID studentId) {
+        return jdbc.sql("""
+                select a.id, a.enrollment_id, v.title, s.required, a.attempt_number, a.status, a.finalized_at, a.published_earned,
+                    a.published_maximum, a.published_passed, a.published_at
+                from exam_attempts a join exam_assignments s on s.id = a.assignment_id join exam_versions v on v.id = s.exam_version_id
+                where a.student_id = :student and a.status <> 'IN_PROGRESS'
+                order by a.finalized_at desc, a.id
+                """)
+                .param("student", studentId)
+                .query((rs, row) -> new OwnResult(rs.getObject("id", UUID.class),
+                        rs.getObject("enrollment_id", UUID.class), rs.getString("title"), rs.getBoolean("required"), rs.getInt("attempt_number"),
+                        AttemptStatus.valueOf(rs.getString("status")), rs.getTimestamp("finalized_at").toInstant(), rs.getBigDecimal("published_earned"),
+                        rs.getBigDecimal("published_maximum"), (Boolean) rs.getObject("published_passed"),
+                        rs.getTimestamp("published_at") == null ? null : rs.getTimestamp("published_at").toInstant()))
+                .list();
     }
 
     private Answer answer(ResultSet rs, int row) throws SQLException {

@@ -11,15 +11,20 @@ const NAVIGATION: Record<Role, { to: string; label: string }[]> = {
   ADMINISTRATOR: [
     { to: '/teacher/courses', label: 'Courses' },
     { to: '/teacher/classes', label: 'Classes' },
+    { to: '/teacher/grading', label: 'Grading' },
     { to: '/admin/users', label: 'Accounts' },
     { to: '/admin/settings', label: 'Settings' },
   ],
   TEACHER: [
     { to: '/teacher/courses', label: 'Courses' },
     { to: '/teacher/classes', label: 'Classes' },
+    { to: '/teacher/grading', label: 'Grading' },
     { to: '/admin/users', label: 'Students' },
   ],
-  STUDENT: [{ to: '/student', label: 'My learning' }],
+  STUDENT: [
+    { to: '/student', label: 'My learning' },
+    { to: '/student/results', label: 'Results' },
+  ],
 }
 
 export function AppShell() {

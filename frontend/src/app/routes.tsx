@@ -19,6 +19,9 @@ import { CoursePlayerPage } from '../features/learning/CoursePlayerPage'
 import { ExamEditorPage } from '../features/assessments/ExamEditorPage'
 import { ExamInstructionsPage } from '../features/assessments/ExamInstructionsPage'
 import { ExamAttemptPage } from '../features/assessments/ExamAttemptPage'
+import { GradingQueuePage } from '../features/grading/GradingQueuePage'
+import { GradeAttemptPage } from '../features/grading/GradeAttemptPage'
+import { StudentResultsPage } from '../features/results/StudentResultsPage'
 
 function Home() {
   const { activeRole } = useSession()
@@ -50,6 +53,9 @@ export const routes: RouteObject[] = [
       { path: '/student/enrollments/:id', element: <RequireAuth roles={['STUDENT']}><CoursePlayerPage /></RequireAuth> },
       { path: '/student/enrollments/:enrollmentId/exams/:assignmentId', element: <RequireAuth roles={['STUDENT']}><ExamInstructionsPage /></RequireAuth> },
       { path: '/student/attempts/:id', element: <RequireAuth roles={['STUDENT']}><ExamAttemptPage /></RequireAuth> },
+      { path: '/teacher/grading', element: <RequireAuth roles={STAFF}><GradingQueuePage /></RequireAuth> },
+      { path: '/teacher/grading/:attemptId', element: <RequireAuth roles={STAFF}><GradeAttemptPage /></RequireAuth> },
+      { path: '/student/results', element: <RequireAuth roles={['STUDENT']}><StudentResultsPage /></RequireAuth> },
       { path: '*', element: <p>Page not found.</p> },
     ],
   },
