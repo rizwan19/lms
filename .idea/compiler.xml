@@ -1,18 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="CompilerConfiguration">
-    <annotationProcessing>
-      <profile name="Maven default annotation processors profile" enabled="true">
-        <sourceOutputDir name="target/generated-sources/annotations" />
-        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
-        <outputRelativeToContentRoot value="true" />
-        <module name="learning-portal" />
-      </profile>
-    </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="learning-portal.dev" target="21" />
+      <module name="learning-portal.dev-postgres" target="21" />
+      <module name="learning-portal.dev-postgres.main" target="21" />
+      <module name="learning-portal.dev-postgres.test" target="21" />
+    </bytecodeTargetLevel>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
       <module name="learning-portal" options="-parameters" />
+      <module name="learning-portal.dev" options="-parameters" />
+      <module name="learning-portal.main" options="-parameters" />
+      <module name="learning-portal.test" options="-parameters" />
     </option>
   </component>
 </project>

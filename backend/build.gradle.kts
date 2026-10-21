@@ -87,3 +87,36 @@ tasks.check {
 tasks.jar {
     enabled = false
 }
+
+// Full stack in Docker (PostgreSQL, backend, frontend via Caddy) from deploy/compose.yml and the repository's .env.
+val repositoryRoot = layout.projectDirectory.dir("..").asFile
+val composeArguments = listOf("-f", "deploy/compose.yml", "--env-file", ".env")
+
+// `docker compose` (plugin) when it works, otherwise the standalone `docker-compose`.
+fun dockerCompose(vararg arguments: String): List<String> {
+    val plugin = providers.exec {
+        commandLine("docker", "compose", "version")
+        isIgnoreExitValue = true
+    }
+    val command = if (plugin.result.get().exitValue == 0) listOf("docker", "compose") else listOf("docker-compose")
+    return command + composeArguments + arguments
+}
+
+tasks.register<Exec>("dockerUp") {
+    description = "Builds and starts the full stack in Docker and waits until it is healthy."
+    group = "docker"
+    workingDir = repositoryRoot
+    doFirst {
+        check(repositoryRoot.resolve(".env").isFile) { "Create .env in the repository root first (see .env.example)." }
+        commandLine(dockerCompose("up", "-d", "--build", "--wait"))
+    }
+}
+
+tasks.register<Exec>("dockerDown") {
+    description = "Stops and removes the Docker stack; data stays in the named volumes."
+    group = "docker"
+    workingDir = repositoryRoot
+    doFirst {
+        commandLine(dockerCompose("down"))
+    }
+}

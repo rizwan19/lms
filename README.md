@@ -23,11 +23,13 @@ scripts/   Backup/restore scripts and the k6 load test
 
 ## Development
 
-Requirements: Java 21, Node.js 22 (>= 22.22), Docker, ffprobe (FFmpeg).
+Requirements: Java 21, Node.js 22 (>= 22.22), PostgreSQL 17, ffprobe (FFmpeg). Docker is needed only for the tests
+and `bootTestRun`.
 
 ```bash
-# Database (development)
-docker compose -f deploy/compose.yml -f deploy/compose.dev.yml up -d postgres
+# Database (development, once): PostgreSQL 17 as a background service, database/user/password learning
+brew install postgresql@17 && brew services start postgresql@17
+PG="$(brew --prefix postgresql@17)/bin"; "$PG/createuser" learning --pwprompt && "$PG/createdb" -O learning learning
 
 # Backend (http://localhost:8080, management/health on :8081)
 cd backend && ./gradlew bootRun --args='--spring.profiles.active=dev'
