@@ -30,11 +30,11 @@ PostgreSQL keeps running in the background (`brew services stop postgresql@17` t
 Follow [docs/runbooks/install-docker.md](docs/runbooks/install-docker.md). In short:
 
 ```bash
-cp .env.example .env            # set POSTGRES_PASSWORD, LEARNING_SETUP_TOKEN, LEARNING_PUBLIC_ORIGIN, LEARNING_SITE_ADDRESS
+cp .env.example .env            # set POSTGRES_PASSWORD, LEARNING_PUBLIC_ORIGIN, LEARNING_SITE_ADDRESS
 docker compose -f deploy/compose.yml --env-file .env up -d --build
 ```
 
-Then open the public URL, choose **Set up institution**, enter the setup token and create the first administrator.
+Then open the public URL, choose **Set up institution** and create the first administrator.
 Every setting is described in [docs/runbooks/configuration.md](docs/runbooks/configuration.md).
 
 To run the same stack on your own machine over plain HTTP, set `LEARNING_PUBLIC_ORIGIN=http://localhost:<port>`,

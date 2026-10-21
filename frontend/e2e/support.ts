@@ -2,7 +2,6 @@ import { expect, type Page } from '@playwright/test'
 
 export const ADMIN = { username: 'admin', password: 'correct horse battery' }
 export const PASSWORD = 'correct horse battery'
-export const SETUP_TOKEN = 'test-setup-token'
 
 /** Unique suffix so specs can rerun against a reused backend database. */
 export const unique = (prefix: string) => `${prefix}-${Date.now().toString(36)}${Math.floor(Math.random() * 1000)}`
@@ -25,7 +24,6 @@ export async function signInAsAdmin(page: Page) {
   const setup = (await (await page.request.get('/api/v1/setup')).json()) as { required: boolean }
   if (setup.required) {
     await page.goto('/setup')
-    await page.getByLabel('Setup token').fill(SETUP_TOKEN)
     await page.getByLabel('Institution name').fill('Shapla Tutoring')
     await page.getByLabel('Timezone').selectOption('Asia/Dhaka')
     await page.getByLabel('Administrator username').fill(ADMIN.username)

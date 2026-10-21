@@ -8,7 +8,6 @@ The application fails to start when a required value is missing.
 | `LEARNING_DB_URL` | yes | — | JDBC URL, e.g. `jdbc:postgresql://localhost:5432/learning` |
 | `LEARNING_DB_USERNAME` / `LEARNING_DB_PASSWORD` | yes | — | Database credentials |
 | `LEARNING_PUBLIC_ORIGIN` | yes | — | Canonical origin used in emailed links and certificate QR codes |
-| `LEARNING_SETUP_TOKEN` | first run | empty | One-use token for creating the first administrator; remove after setup |
 | `LEARNING_SECURE_COOKIES` | no | `true` | Keep `true` behind HTTPS; `false` only for local HTTP testing |
 | `LEARNING_BIND_ADDRESS` | no | `0.0.0.0` | Application HTTP bind address (`127.0.0.1` on a VPS behind Caddy) |
 | `LEARNING_PORT` | no | `8080` | Application HTTP port |

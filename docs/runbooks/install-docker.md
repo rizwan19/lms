@@ -11,7 +11,7 @@ host is 4 vCPU / 8 GiB; see [../verification-results.md](../verification-results
    git clone <repository> learning-portal && cd learning-portal
    cp .env.example .env
    # Set LEARNING_PUBLIC_ORIGIN=https://learn.example.org, LEARNING_SITE_ADDRESS=learn.example.org,
-   # strong random POSTGRES_PASSWORD and LEARNING_SETUP_TOKEN (e.g. `openssl rand -base64 32`).
+   # strong random POSTGRES_PASSWORD (e.g. `openssl rand -base64 32`).
    chmod 600 .env
    ```
 
@@ -19,8 +19,8 @@ host is 4 vCPU / 8 GiB; see [../verification-results.md](../verification-results
    Caddy obtains HTTPS certificates automatically for `LEARNING_SITE_ADDRESS`.
 4. Check health: `docker compose -f deploy/compose.yml ps` shows `app` as `healthy` (readiness checks the database and
    the selected storage).
-5. Open `https://learn.example.org`, enter the setup token and create the first administrator. Then remove
-   `LEARNING_SETUP_TOKEN` from `.env` and run `up -d` again; setup is disabled once an administrator exists anyway.
+5. Open `https://learn.example.org` right away and create the first administrator. Until one exists, anyone who can
+   reach the site can complete setup; it is disabled afterwards.
 6. Configure backups before real use: [backup-restore.md](backup-restore.md).
 
 Data lives in the named volumes `postgres-data` (database), `media-data` (private files) and `caddy-data`

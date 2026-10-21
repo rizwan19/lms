@@ -62,8 +62,6 @@ logging:
 learning:
   # Canonical public origin used in emailed links, e.g. https://learn.example.org (required).
   public-origin: ${LEARNING_PUBLIC_ORIGIN}
-  identity:
-    setup-token: ${LEARNING_SETUP_TOKEN:}
   mail:
     from: ${LEARNING_MAIL_FROM:}
   storage:

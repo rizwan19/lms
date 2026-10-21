@@ -39,7 +39,6 @@ LEARNING_DB_URL=jdbc:postgresql://localhost:5432/learning
 LEARNING_DB_USERNAME=learning
 LEARNING_DB_PASSWORD=$DB_PASSWORD
 LEARNING_PUBLIC_ORIGIN=https://learn.example.org
-LEARNING_SETUP_TOKEN=$(openssl rand -base64 32)
 LEARNING_BIND_ADDRESS=127.0.0.1
 LEARNING_MEDIA_ROOT=/var/lib/learning-portal/media
 LEARNING_STAGING_DIR=/var/lib/learning-portal/staging
@@ -59,8 +58,8 @@ systemctl reload caddy
 ufw allow 22/tcp && ufw allow 80/tcp && ufw allow 443/tcp && ufw enable
 ```
 
-Ports 8080 and 8081 listen on 127.0.0.1 only. Open the site, use the setup token from `learning.env`, then delete
-the `LEARNING_SETUP_TOKEN` line and `systemctl restart learning-portal`.
+Ports 8080 and 8081 listen on 127.0.0.1 only. Open the site immediately and create the first
+administrator: until one exists, anyone who can reach the site can complete setup.
 
 ## Verification status
 

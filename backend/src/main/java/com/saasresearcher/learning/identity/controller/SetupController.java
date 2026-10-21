@@ -34,7 +34,7 @@ public class SetupController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     MeView setup(@Valid @RequestBody SetupRequest request) {
-        return MeView.of(setup.setup(new SetupCommand(request.setupToken(), request.institutionName(),
+        return MeView.of(setup.setup(new SetupCommand(request.institutionName(),
                 Timezones.parse("timezone", request.timezone()), request.username(), request.displayName(),
                 request.email(), request.password())));
     }
@@ -42,7 +42,7 @@ public class SetupController {
     record SetupStatus(boolean required) {
     }
 
-    record SetupRequest(@NotBlank String setupToken, @NotBlank @Size(max = 200) String institutionName,
+    record SetupRequest(@NotBlank @Size(max = 200) String institutionName,
             @NotBlank String timezone, @NotNull String username, @NotNull String displayName,
             @NotNull String email, @NotNull String password) {
     }

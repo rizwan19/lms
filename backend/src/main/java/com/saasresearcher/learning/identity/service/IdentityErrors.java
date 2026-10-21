@@ -9,7 +9,6 @@ public final class IdentityErrors {
     static final String LAST_ADMINISTRATOR = "LAST_ADMINISTRATOR";
     static final String INVALID_TOKEN = "INVALID_TOKEN";
     static final String SETUP_COMPLETED = "SETUP_COMPLETED";
-    static final String SETUP_TOKEN_INVALID = "SETUP_TOKEN_INVALID";
     public static final String PASSWORD_CHANGE_REQUIRED = "PASSWORD_CHANGE_REQUIRED";
     public static final String CSRF_REJECTED = "CSRF_REJECTED";
     static final String EMAIL_NOT_CONFIGURED = "EMAIL_NOT_CONFIGURED";

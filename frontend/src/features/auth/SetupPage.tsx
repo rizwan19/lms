@@ -5,7 +5,7 @@ import type { Me } from '../../shared/types'
 import { ErrorMessage, Field, fieldErrors } from '../../shared/ui'
 import { TimezoneSelect } from '../settings/TimezoneSelect'
 
-type SetupForm = Record<'setupToken' | 'institutionName' | 'timezone' | 'username' | 'displayName' | 'email' | 'password', string>
+type SetupForm = Record<'institutionName' | 'timezone' | 'username' | 'displayName' | 'email' | 'password', string>
 
 /** First-run installation setup; the backend disables it once an administrator exists. */
 export function SetupPage() {
@@ -34,9 +34,6 @@ export function SetupPage() {
           setup.mutate(Object.fromEntries(new FormData(event.currentTarget)) as SetupForm)
         }}
       >
-        <Field label="Setup token" name="setupToken" errors={errors} hint="Provided by whoever installed the portal">
-          <input id="setupToken" name="setupToken" required autoComplete="off" />
-        </Field>
         <Field label="Institution name" name="institutionName" errors={errors}>
           <input id="institutionName" name="institutionName" required maxLength={200} />
         </Field>

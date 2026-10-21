@@ -95,11 +95,10 @@ paths:
         '200': { description: Status, content: { application/json: { schema: { type: object, properties: { required: { type: boolean } } } } } }
     post:
       tags: [setup]
-      summary: One-use installation setup with the operator-supplied setup token
+      summary: One-use installation setup creating the first administrator
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SetupRequest' } } } }
       responses:
         '201': { description: Administrator created, content: { application/json: { schema: { $ref: '#/components/schemas/Me' } } } }
-        '403': { $ref: '#/components/responses/Problem' }
         '409': { $ref: '#/components/responses/Problem' }
   /users:
     get:
@@ -926,9 +925,8 @@ components:
       properties: { token: { type: string }, password: { type: string, minLength: 12, maxLength: 128 } }
     SetupRequest:
       type: object
-      required: [setupToken, institutionName, timezone, username, displayName, email, password]
+      required: [institutionName, timezone, username, displayName, email, password]
       properties:
-        setupToken: { type: string }
         institutionName: { type: string, maxLength: 200 }
         timezone: { type: string, example: Asia/Dhaka }
         username: { type: string }

@@ -6,7 +6,6 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 
 @ConfigurationProperties("learning.identity")
 public record IdentityProperties(
-        String setupToken,
         @DefaultValue("12") int passwordHashStrength,
         @DefaultValue("5") int loginAttemptsPerAccount,
         @DefaultValue("50") int loginAttemptsPerIp,

@@ -18,5 +18,4 @@ learning:
     storage-root: build/test-media/assets
     staging-dir: build/test-media/staging
   identity:
-    setup-token: test-setup-token
     password-hash-strength: 4

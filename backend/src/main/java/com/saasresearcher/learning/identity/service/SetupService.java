@@ -4,18 +4,16 @@ import com.saasresearcher.learning.audit.api.AuditEntry;
 import com.saasresearcher.learning.audit.api.AuditLog;
 import com.saasresearcher.learning.common.ApiException;
 import com.saasresearcher.learning.common.Role;
-import com.saasresearcher.learning.identity.config.IdentityProperties;
 import com.saasresearcher.learning.identity.entity.UserAccount;
 import com.saasresearcher.learning.identity.repository.UserAccountRepository;
 import com.saasresearcher.learning.institution.api.InstitutionSettings;
 import java.time.Clock;
 import java.time.ZoneId;
 import java.util.Set;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** One-use installation setup guarded by an operator-supplied token; disabled once an administrator exists. */
+/** One-use installation setup; disabled once an administrator exists. */
 @Service
 public class SetupService {
 
@@ -23,16 +21,14 @@ public class SetupService {
     private final CredentialIssuer credentials;
     private final InstitutionSettings institution;
     private final AuditLog audit;
-    private final IdentityProperties properties;
     private final Clock clock;
 
     SetupService(UserAccountRepository accounts, CredentialIssuer credentials, InstitutionSettings institution, AuditLog audit,
-            IdentityProperties properties, Clock clock) {
+            Clock clock) {
         this.accounts = accounts;
         this.credentials = credentials;
         this.institution = institution;
         this.audit = audit;
-        this.properties = properties;
         this.clock = clock;
     }
 
@@ -46,11 +42,6 @@ public class SetupService {
         institution.lock();
         if (!isSetupRequired()) {
             throw ApiException.conflict(IdentityErrors.SETUP_COMPLETED, "Setup has already been completed");
-        }
-        String expected = properties.setupToken();
-        if (expected == null || expected.isBlank() || command.setupToken() == null
-                || !SecureTokens.constantTimeEquals(expected, command.setupToken())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, IdentityErrors.SETUP_TOKEN_INVALID, "The setup token is not valid");
         }
         String email = AccountRules.email(command.email());
         if (email == null) {
@@ -66,7 +57,7 @@ public class SetupService {
         return admin;
     }
 
-    public record SetupCommand(String setupToken, String institutionName, ZoneId timezone, String username,
+    public record SetupCommand(String institutionName, ZoneId timezone, String username,
             String displayName, String email, String password) {
     }
 }

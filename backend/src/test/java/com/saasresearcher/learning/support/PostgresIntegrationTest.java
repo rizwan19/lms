@@ -23,7 +23,6 @@ import com.saasresearcher.learning.support.TestJobsConfiguration.RecordingJobHan
 @ActiveProfiles("test")
 public abstract class PostgresIntegrationTest {
 
-    public static final String SETUP_TOKEN = "test-setup-token";
     public static final String PASSWORD = "correct horse battery";
 
     private static final List<String> PRESERVED_TABLES = List.of("flyway_schema_history", "institution_settings", "system_state");
@@ -84,7 +83,7 @@ public abstract class PostgresIntegrationTest {
     protected ApiClient setupAdministrator() {
         ApiClient admin = client();
         admin.get("/auth/csrf");
-        admin.post("/setup", Map.of("setupToken", SETUP_TOKEN, "institutionName", "Test School", "timezone", "Asia/Dhaka",
+        admin.post("/setup", Map.of("institutionName", "Test School", "timezone", "Asia/Dhaka",
                 "username", "admin", "displayName", "Administrator", "email", "admin@example.test", "password", PASSWORD))
                 .expect(201);
         return login("admin", PASSWORD);

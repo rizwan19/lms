@@ -19,21 +19,19 @@ import org.junit.jupiter.api.Test;
 class AccountSecurityIT extends PostgresIntegrationTest {
 
     @Test
-    void setupIsOneUseAndRequiresTheConfiguredToken() {
+    void setupIsOneUse() {
         ApiClient anonymous = client();
         anonymous.get("/auth/csrf");
         assertThat(anonymous.get("/setup").json().path("required").asBoolean()).isTrue();
 
-        Map<String, String> request = Map.of("setupToken", "wrong", "institutionName", "Shapla School", "timezone", "Asia/Dhaka",
+        Map<String, String> request = Map.of("institutionName", "Shapla School", "timezone", "Asia/Dhaka",
                 "username", "Admin", "displayName", "প্রধান শিক্ষক", "email", "admin@example.test", "password", PASSWORD);
-        assertThat(anonymous.post("/setup", request).code()).isEqualTo("SETUP_TOKEN_INVALID");
-
-        ApiResponse created = anonymous.post("/setup", withToken(request, SETUP_TOKEN));
+        ApiResponse created = anonymous.post("/setup", request);
         assertThat(created.status()).isEqualTo(201);
         assertThat(created.json().path("displayName").asString()).isEqualTo("প্রধান শিক্ষক");
         assertThat(anonymous.get("/institution").json().path("timezone").asString()).isEqualTo("Asia/Dhaka");
 
-        ApiResponse again = anonymous.post("/setup", withToken(request, SETUP_TOKEN));
+        ApiResponse again = anonymous.post("/setup", request);
         assertThat(again.status()).isEqualTo(409);
         assertThat(again.code()).isEqualTo("SETUP_COMPLETED");
         assertThat(anonymous.get("/setup").json().path("required").asBoolean()).isFalse();
@@ -263,12 +261,6 @@ class AccountSecurityIT extends PostgresIntegrationTest {
                 .param("expires", Timestamp.from(expiresAt))
                 .param("now", Timestamp.from(clock.instant()))
                 .update();
-    }
-
-    private static Map<String, String> withToken(Map<String, String> request, String token) {
-        Map<String, String> copy = new java.util.HashMap<>(request);
-        copy.put("setupToken", token);
-        return copy;
     }
 
     private static String sha256(String value) {

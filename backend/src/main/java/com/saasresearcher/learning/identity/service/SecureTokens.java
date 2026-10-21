@@ -38,8 +38,4 @@ public final class SecureTokens {
             throw new IllegalStateException(e);
         }
     }
-
-    static boolean constantTimeEquals(String a, String b) {
-        return MessageDigest.isEqual(a.getBytes(StandardCharsets.UTF_8), b.getBytes(StandardCharsets.UTF_8));
-    }
 }
