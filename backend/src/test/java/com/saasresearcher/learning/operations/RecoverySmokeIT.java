@@ -15,7 +15,7 @@ import static com.saasresearcher.learning.support.ExamFixtures.written;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.saasresearcher.learning.LearningPortalApplication;
-import com.saasresearcher.learning.notifications.internal.JobRunner;
+import com.saasresearcher.learning.notifications.infra.JobRunner;
 import com.saasresearcher.learning.support.ApiClient;
 import com.saasresearcher.learning.support.PostgresIntegrationTest;
 import java.io.IOException;

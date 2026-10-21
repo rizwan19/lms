@@ -5,11 +5,11 @@ import static com.saasresearcher.learning.support.ExamFixtures.singleChoice;
 import static com.saasresearcher.learning.support.ExamFixtures.written;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.saasresearcher.learning.assessments.internal.ExpiredAttemptSweep;
-import com.saasresearcher.learning.support.ApiClient;
+import com.saasresearcher.learning.assessments.service.ExpiredAttemptSweep;
 import com.saasresearcher.learning.support.ApiClient.ApiResponse;
-import com.saasresearcher.learning.support.ExamClassFixture;
+import com.saasresearcher.learning.support.ApiClient;
 import com.saasresearcher.learning.support.ExamClassFixture.QuestionKey;
+import com.saasresearcher.learning.support.ExamClassFixture;
 import com.saasresearcher.learning.support.PostgresIntegrationTest;
 import java.sql.Timestamp;
 import java.time.Duration;

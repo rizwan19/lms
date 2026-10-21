@@ -8,8 +8,19 @@ for product rules. This file records the conventions the code relies on.
 - `backend/` is a Spring Boot modular monolith under `com.saasresearcher.learning`. Each module
   (`identity`, `institution`, `courses`, `classrooms`, `learning`, `assessments`, `grading`, `completion`,
   `certificates`, `reporting`, `media`, `notifications`, `operations`, `audit`) has an `api` package (public records and
-  interfaces) and an `internal` package (everything else). `common` holds cross-cutting infrastructure only.
-- Modules depend on each other only through `api`. `ModuleBoundariesTest` (ArchUnit) enforces this; keep it green.
+  interfaces) and layer packages for everything else. `common` holds cross-cutting infrastructure only.
+- Layer packages inside a module:
+  - `controller`: REST controllers. Request/response records local to one endpoint may stay nested in the controller.
+  - `service`: business logic, authorization helpers, `*Rules`, `*Errors`, and implementations of `api` interfaces.
+  - `repository`: `JdbcClient` repositories and Spring Data interfaces.
+  - `dto`: view and input records shared between controller and service.
+  - `entity`: JPA entities and JDBC row records.
+  - `config`: `@ConfigurationProperties`, Spring configuration, schedules, filters and argument resolvers.
+  - `infra`: job handlers, mail, storage, rendering and other adapters.
+- Layers depend downwards only. Controllers never touch repositories: add a service method instead. Repositories may
+  be used by `service`, `infra` and `config`; `infra` only by `service` and `config`.
+- Modules depend on each other only through `api`; every other package of a module is internal even though its classes
+  are `public`. `ModuleBoundariesTest` (ArchUnit) enforces both the module and the layer rules; keep it green.
 - When two modules need each other, the lower module owns a listener/policy interface in its `api` and the higher one
   implements it (`ClassLifecycleListener`, `ProgressObserver`, `AttemptFinalizedListener`, `PublishedResultListener`,
   `CompletionListener`, `AssetAccessPolicy`, `RequiredExamValidator`). Do not add a direct call back.

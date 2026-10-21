@@ -4,9 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.saasresearcher.learning.media.api.AssetStore;
-import com.saasresearcher.learning.media.internal.MediaMaintenance;
-import com.saasresearcher.learning.support.ApiClient;
+import com.saasresearcher.learning.media.service.MediaMaintenance;
 import com.saasresearcher.learning.support.ApiClient.ApiResponse;
+import com.saasresearcher.learning.support.ApiClient;
 import com.saasresearcher.learning.support.GeneratedInputStream;
 import com.saasresearcher.learning.support.PostgresIntegrationTest;
 import java.awt.image.BufferedImage;

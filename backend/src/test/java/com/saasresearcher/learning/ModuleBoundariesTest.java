@@ -2,6 +2,7 @@ package com.saasresearcher.learning;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
 
 import com.tngtech.archunit.core.domain.Dependency;
 import com.tngtech.archunit.core.domain.JavaClass;
@@ -35,15 +36,39 @@ class ModuleBoundariesTest {
                 .check(production);
     }
 
+    @Test
+    void layersInsideModulesOnlyDependDownwards() {
+        layeredArchitecture().consideringOnlyDependenciesInLayers()
+                .layer("Controller").definedBy(layer("controller"))
+                .layer("Service").definedBy(layer("service"))
+                .layer("Repository").definedBy(layer("repository"))
+                .layer("Dto").definedBy(layer("dto"))
+                .layer("Entity").definedBy(layer("entity"))
+                .layer("Config").definedBy(layer("config"))
+                .layer("Infra").definedBy(layer("infra"))
+                .whereLayer("Controller").mayNotBeAccessedByAnyLayer()
+                .whereLayer("Service").mayOnlyBeAccessedByLayers("Controller", "Config", "Infra")
+                .whereLayer("Repository").mayOnlyBeAccessedByLayers("Service", "Infra", "Config")
+                .whereLayer("Dto").mayOnlyBeAccessedByLayers("Controller", "Service", "Repository", "Infra")
+                .whereLayer("Infra").mayOnlyBeAccessedByLayers("Service", "Config")
+                .allowEmptyShould(true)
+                .check(production);
+    }
+
+    private static String layer(String name) {
+        return ROOT + "*." + name + "..";
+    }
+
     private static ArchCondition<JavaClass> notDependOnOtherModuleInternals() {
-        return new ArchCondition<>("not depend on another module's internal package") {
+        return new ArchCondition<>("not depend on another module's classes outside its api package") {
             @Override
             public void check(JavaClass origin, ConditionEvents events) {
                 Optional<String> originModule = module(origin);
                 for (Dependency dependency : origin.getDirectDependenciesFromSelf()) {
                     JavaClass target = dependency.getTargetClass();
                     Optional<String> targetModule = module(target);
-                    boolean internal = target.getPackageName().contains(".internal");
+                    boolean internal = !target.getPackageName().endsWith(".api")
+                            && !target.getPackageName().endsWith("." + targetModule.orElse(""));
                     if (internal && targetModule.isPresent() && !targetModule.equals(originModule)) {
                         events.add(SimpleConditionEvent.violated(dependency, dependency.getDescription()));
                     }
