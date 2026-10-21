@@ -11,14 +11,14 @@ Requirements: Java 21, Node.js 22 (>= 22.22), Docker (or Colima), ffprobe (FFmpe
 
 ```bash
 docker compose -f deploy/compose.yml -f deploy/compose.dev.yml up -d postgres
-cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev,demo     # terminal 1
+cd backend && ./gradlew bootRun --args='--spring.profiles.active=dev,demo'  # terminal 1
 cd frontend && npm ci && npm run dev                                         # terminal 2
 ```
 
 Open http://localhost:5173 and sign in as `demo-admin`, `demo-teacher` or `demo-student` with the password
 `demo-password-not-secret`. Demo accounts are created only when no administrator exists yet.
 
-Without a local PostgreSQL, `cd backend && ./mvnw spring-boot:test-run` starts the backend against a throwaway
+Without a local PostgreSQL, `cd backend && ./gradlew bootTestRun` starts the backend against a throwaway
 Testcontainers database instead (data is lost on exit).
 
 ## 2. Install on one machine with Docker Compose

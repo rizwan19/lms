@@ -46,7 +46,7 @@ These constraints are copied into the plan and apply across tasks:
 
 - One institution per installation; no tenant routing or `tenant_id` columns in release 1.
 - No payments, subscriptions, billing, or payment-provider dependencies.
-- Java 21; Spring Boot 4.1.1; Maven Wrapper 3.9.x; PostgreSQL 17.
+- Java 21; Spring Boot 4.1.1; Gradle Wrapper 9.x; PostgreSQL 17.
 - React 19; TypeScript 5; Vite; Node.js 22.12 or newer within major 22; npm lockfile committed.
 - One backend application; same-origin React and `/api/v1`; Spring Security sessions stored by Spring Session JDBC.
 - Feature packages under `com.saasresearcher.learning`; module internals must not be imported across modules.
@@ -244,7 +244,7 @@ Reporting reads authorized projections, not a separate analytics database. Inclu
 Repository structure:
 
 ```text
-backend/pom.xml, mvnw, .mvn/
+backend/build.gradle.kts, settings.gradle.kts, gradle.lockfile, gradlew, gradle/
 backend/src/main/java/com/saasresearcher/learning/{module}/{api,internal}/
 backend/src/main/resources/{application.yml,db/migration/}
 backend/src/test/java/com/saasresearcher/learning/

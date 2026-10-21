@@ -46,7 +46,7 @@ import tools.jackson.databind.json.JsonMapper;
 class RecoverySmokeIT extends PostgresIntegrationTest {
 
     private static final Path SCRIPTS = Path.of("../scripts").toAbsolutePath().normalize();
-    private static final Path MEDIA = Path.of("target/test-media/assets").toAbsolutePath();
+    private static final Path MEDIA = Path.of("build/test-media/assets").toAbsolutePath();
     private static final JsonNode FIXTURE = load();
 
     @Autowired

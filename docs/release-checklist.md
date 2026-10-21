@@ -4,7 +4,7 @@ Run before tagging a release. Record results in [verification-results.md](verifi
 
 ## Build gates (all must pass)
 
-- [ ] `cd backend && ./mvnw verify` — unit, integration, module-boundary and OpenAPI contract tests.
+- [ ] `cd backend && ./gradlew check` — unit, integration, module-boundary and OpenAPI contract tests.
 - [ ] `cd frontend && npm run lint && npm run typecheck && npm test -- --run && npm run build`
 - [ ] `cd frontend && npm run test:e2e` — includes the complete learning journey and exam recovery specs.
 - [ ] `docs/api/openapi.yaml` updated for any route change (`OpenApiContractIT` fails otherwise).
@@ -12,7 +12,7 @@ Run before tagging a release. Record results in [verification-results.md](verifi
 ## Security
 
 - [ ] `cd frontend && npm audit` reports no vulnerabilities.
-- [ ] `osv-scanner scan source --lockfile backend/pom.xml --lockfile frontend/package-lock.json` reports no issues,
+- [ ] `osv-scanner scan source --lockfile backend/gradle.lockfile --lockfile frontend/package-lock.json` reports no issues,
       or each finding is patched or documented with a reason.
 - [ ] Secret scan of tracked files finds nothing (`gitleaks detect` or the pattern scan in verification-results).
 - [ ] `.env` and backups are not tracked; `.env.example` holds placeholders only.
@@ -30,6 +30,6 @@ Run before tagging a release. Record results in [verification-results.md](verifi
 
 ## Package
 
-- [ ] Version set in `backend/pom.xml` and `frontend/package.json`.
+- [ ] Version set in `backend/build.gradle.kts` and `frontend/package.json`.
 - [ ] Source package: `git archive --format=tar.gz --prefix=learning-portal-<version>/ -o learning-portal-<version>.tar.gz <tag>`.
 - [ ] Release notes list migrations, configuration changes and known limitations.

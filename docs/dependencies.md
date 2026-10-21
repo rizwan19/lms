@@ -1,15 +1,15 @@
 # Resolved dependencies
 
 Recorded per task. Framework-managed backend libraries come from the Spring Boot BOM; only
-explicitly versioned libraries are pinned in `backend/pom.xml`. Frontend versions are exact
+explicitly versioned libraries are pinned in `backend/build.gradle.kts` and locked in `backend/gradle.lockfile`. Frontend versions are exact
 (`.npmrc` sets `save-exact`) and locked in `frontend/package-lock.json`.
 
 ## Toolchain
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| Java | 21 (Temurin 21.0.7 locally) | `java.version=21` |
-| Maven | 3.9.16 via Maven Wrapper 3.3.4 | `backend/.mvn/wrapper/maven-wrapper.properties` |
+| Java | 21 (Temurin 21.0.7 locally) | Gradle toolchain `languageVersion = 21` |
+| Gradle | 9.3.1 via Gradle Wrapper | `backend/gradle/wrapper/gradle-wrapper.properties` |
 | Node.js | 22.x, >= 22.22.0 | Several current toolchain packages (react-router 8, jsdom 30) require >= 22.22; still within the major-22 baseline |
 | PostgreSQL | 17 (`postgres:17-alpine`) | Tests and development compose file |
 | k6 (load test, not shipped) | 2.3.0 | `scripts/load/learning-portal.js` |

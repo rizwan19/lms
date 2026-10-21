@@ -33,7 +33,7 @@ class LocalMediaIT extends PostgresIntegrationTest {
 
     private static final long MIB = 1024 * 1024;
     private static final byte[] PDF = "%PDF-1.4\n%âãÏÓ\n1 0 obj << >> endobj\ntrailer << >>\n%%EOF\n".getBytes(StandardCharsets.ISO_8859_1);
-    private static final Path STAGING = Path.of("target/test-media/staging");
+    private static final Path STAGING = Path.of("build/test-media/staging");
 
     @Autowired
     private AssetStore store;
@@ -139,7 +139,7 @@ class LocalMediaIT extends PostgresIntegrationTest {
         assertThat(uploaded.json().path("filename").asString()).isEqualTo("passwd.pdf");
         String key = jdbc.sql("select storage_key from media_assets where id = :id").param("id", UUID.fromString(id)).query(String.class).single();
         assertThat(key).isEqualTo("assets/" + id);
-        assertThat(Files.exists(Path.of("target/test-media/assets").resolve(key))).isTrue();
+        assertThat(Files.exists(Path.of("build/test-media/assets").resolve(key))).isTrue();
 
         TestUser otherTeacher = createUser(admin, "other.teacher", "other@example.test", "TEACHER");
         TestUser student = createUser(admin, "curious.student", null, "STUDENT");

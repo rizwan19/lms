@@ -14,7 +14,7 @@ installation, private lesson materials, classes, mixed exams, teacher grading an
 ## Layout
 
 ```text
-backend/   Spring Boot 4.1 modular monolith (Java 21, Maven Wrapper)
+backend/   Spring Boot 4.1 modular monolith (Java 21, Gradle Wrapper)
 frontend/  React 19 + TypeScript + Vite single-page app
 deploy/    Docker Compose and container definitions
 docs/      API contract, runbooks, dependency records and verification evidence
@@ -30,16 +30,16 @@ Requirements: Java 21, Node.js 22 (>= 22.22), Docker, ffprobe (FFmpeg).
 docker compose -f deploy/compose.yml -f deploy/compose.dev.yml up -d postgres
 
 # Backend (http://localhost:8080, management/health on :8081)
-cd backend && ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+cd backend && ./gradlew bootRun --args='--spring.profiles.active=dev'
 
 # Or: backend with a throwaway Testcontainers database
-cd backend && ./mvnw spring-boot:test-run
+cd backend && ./gradlew bootTestRun
 
 # Frontend (http://localhost:5173, proxies /api to :8080)
 cd frontend && npm ci && npm run dev
 ```
 
-Add the `demo` profile (`-Dspring-boot.run.profiles=dev,demo`) to create `demo-admin`, `demo-teacher` and
+Add the `demo` profile (`--args='--spring.profiles.active=dev,demo'`) to create `demo-admin`, `demo-teacher` and
 `demo-student` (password `demo-password-not-secret`) on an empty database. Demo mode refuses to start with secure
 cookies, i.e. on any production configuration.
 
@@ -52,9 +52,9 @@ cookies, i.e. on any production configuration.
 ## Verification
 
 ```bash
-cd backend && ./mvnw verify          # unit tests (*Test) and integration tests (*IT, Testcontainers)
+cd backend && ./gradlew check        # unit tests (*Test) and integration tests (*IT, Testcontainers)
 cd frontend && npm run lint && npm run typecheck && npm test -- --run && npm run build
-cd frontend && npm run test:e2e      # Playwright; boots the backend via spring-boot:test-run
+cd frontend && npm run test:e2e      # Playwright; boots the backend via gradle bootTestRun
 k6 run scripts/load/learning-portal.js   # load test against a running stack (see the script header)
 ```
 

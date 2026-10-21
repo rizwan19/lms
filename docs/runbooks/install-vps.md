@@ -26,8 +26,8 @@ sudo -u postgres createdb -O learning learning
 
 ## 3. Application
 
-Build on a workstation (`cd backend && ./mvnw -DskipTests package`, `cd frontend && npm ci && npm run build`) and copy
-`backend/target/learning-portal-*.jar` and `frontend/dist/` to the server.
+Build on a workstation (`cd backend && ./gradlew bootJar`, `cd frontend && npm ci && npm run build`) and copy
+`backend/build/libs/learning-portal-*.jar` and `frontend/dist/` to the server.
 
 ```bash
 useradd --system --home-dir /opt/learning-portal --shell /usr/sbin/nologin learning

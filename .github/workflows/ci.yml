@@ -13,12 +13,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-          cache: maven
+      - uses: gradle/actions/setup-gradle@v4
       - name: Install ffprobe
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg
       - name: Verify
         working-directory: backend
-        run: ./mvnw -B verify
+        run: ./gradlew check
 
   frontend:
     runs-on: ubuntu-24.04

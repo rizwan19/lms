@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test'
 
 /**
  * End-to-end tests run against the assembled application: the backend boots with a disposable
- * PostgreSQL container (spring-boot:test-run) and the Vite dev server proxies /api to it.
+ * PostgreSQL container (gradle bootTestRun) and the Vite dev server proxies /api to it.
  */
 export default defineConfig({
   testDir: './e2e',
@@ -19,7 +19,7 @@ export default defineConfig({
   ],
   webServer: [
     {
-      command: './mvnw -q spring-boot:test-run',
+      command: './gradlew -q bootTestRun',
       cwd: '../backend',
       url: 'http://localhost:8081/actuator/health/readiness',
       timeout: 240_000,

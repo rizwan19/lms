@@ -1,11 +1,11 @@
 # Build context: repository root.  docker build -f deploy/backend.Dockerfile .
 FROM eclipse-temurin:21-jdk-noble AS build
 WORKDIR /src
-COPY backend/.mvn .mvn
-COPY backend/mvnw backend/pom.xml ./
-RUN ./mvnw -B -q dependency:go-offline
+COPY backend/gradle gradle
+COPY backend/gradlew backend/settings.gradle.kts backend/build.gradle.kts backend/gradle.lockfile ./
+RUN ./gradlew -q --no-daemon dependencies
 COPY backend/src src
-RUN ./mvnw -B -q -DskipTests package && cp target/learning-portal-*.jar /app.jar
+RUN ./gradlew -q --no-daemon bootJar && cp build/libs/learning-portal-*.jar /app.jar
 
 FROM eclipse-temurin:21-jre-noble
 # ffprobe validates uploaded videos (no transcoding); curl serves the container health check.

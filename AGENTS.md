@@ -47,8 +47,8 @@ for product rules. This file records the conventions the code relies on.
 ## Commands
 
 ```bash
-cd backend && ./mvnw verify                                   # all backend tests
-cd backend && ./mvnw -B verify -Dit.test=ReleaseJourneyIT -Dsurefire.skip=true   # one IT
+cd backend && ./gradlew check                                 # all backend tests
+cd backend && ./gradlew integrationTest --tests ReleaseJourneyIT   # one IT
 cd frontend && npm run lint && npm run typecheck && npm test -- --run && npm run build
 cd frontend && npm run test:e2e                               # Playwright, boots backend with Testcontainers
 ```
