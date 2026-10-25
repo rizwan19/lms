@@ -2,8 +2,6 @@ package com.saasresearcher.learning.notifications.api;
 
 import java.util.Arrays;
 
-// Stored as code; codes are permanent, never reuse or renumber one.
-/** Lifecycle of a background job: PENDING → RUNNING → SUCCEEDED, or back to PENDING / FAILED. */
 public enum JobStatus {
     PENDING(0),
     RUNNING(1),

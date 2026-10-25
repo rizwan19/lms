@@ -2,6 +2,7 @@ import { Navigate, type RouteObject } from 'react-router'
 import { AppShell } from './AppShell'
 import { RequireAuth, homePath, useSession } from './session'
 import { LoginPage } from '../features/auth/LoginPage'
+import { SignupPage } from '../features/auth/SignupPage'
 import { SetupPage } from '../features/auth/SetupPage'
 import { ChangePasswordPage } from '../features/auth/ChangePasswordPage'
 import { ForgotPasswordPage } from '../features/auth/ForgotPasswordPage'
@@ -37,6 +38,7 @@ export const routes: RouteObject[] = [
     children: [
       { path: '/', element: <RequireAuth><Home /></RequireAuth> },
       { path: '/login', element: <LoginPage /> },
+      { path: '/signup', element: <SignupPage /> },
       { path: '/setup', element: <SetupPage /> },
       { path: '/forgot-password', element: <ForgotPasswordPage /> },
       { path: '/reset-password', element: <TokenPasswordPage mode="reset" /> },

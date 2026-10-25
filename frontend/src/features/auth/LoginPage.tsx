@@ -1,12 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, Navigate } from 'react-router'
+import { Link, Navigate, useLocation } from 'react-router'
 import { api } from '../../shared/api'
 import type { Profile } from '../../shared/types'
 import { ErrorMessage, Field } from '../../shared/ui'
 import { useSession } from '../../app/session'
 
+type LoginLocationState = { registrationComplete?: boolean }
+
 export function LoginPage() {
   const { me } = useSession()
+  const location = useLocation()
+  const registrationComplete = (location.state as LoginLocationState | null)?.registrationComplete === true
   const queryClient = useQueryClient()
   const setup = useQuery({ queryKey: ['setup'], queryFn: () => api.get<boolean>('/setup') })
   const login = useMutation({
@@ -23,6 +27,12 @@ export function LoginPage() {
   return (
     <section className="card narrow">
       <h1>Sign in</h1>
+      {registrationComplete && (
+        <p className="notice" role="status">
+          Account created. Check your email for a verification link. You can sign in to resend the verification email if
+          needed.
+        </p>
+      )}
       <form
         onSubmit={(event) => {
           event.preventDefault()
@@ -43,6 +53,9 @@ export function LoginPage() {
       </form>
       <p>
         <Link to="/forgot-password">Forgot your password?</Link>
+      </p>
+      <p>
+        Don’t have an account? <Link to="/signup">Create account</Link>
       </p>
     </section>
   )

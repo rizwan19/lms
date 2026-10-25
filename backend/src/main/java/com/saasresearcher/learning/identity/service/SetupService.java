@@ -7,10 +7,10 @@ import com.saasresearcher.learning.common.Role;
 import com.saasresearcher.learning.common.Timezones;
 import com.saasresearcher.learning.identity.api.TokenPurpose;
 import com.saasresearcher.learning.identity.dto.AccountViews.RegistrationReceipt;
+import com.saasresearcher.learning.identity.dto.RegisterRequest;
 import com.saasresearcher.learning.identity.dto.SetupRequest;
 import com.saasresearcher.learning.identity.entity.UserAccount;
 import com.saasresearcher.learning.identity.repository.UserAccountRepository;
-import com.saasresearcher.learning.identity.service.RegistrationService.RegisterCommand;
 import com.saasresearcher.learning.notifications.api.EmailSender;
 import com.saasresearcher.learning.workspace.api.WorkspaceService;
 import com.saasresearcher.learning.workspace.api.WorkspaceState;
@@ -54,7 +54,7 @@ public class SetupService {
         if (name.isEmpty() || name.length() > 200) {
             throw ApiException.invalid("workspaceName", "Name must be 1-200 characters");
         }
-        UserAccount owner = registrationService.newAccount(new RegisterCommand(request.username(), request.displayName(), request.email(),
+        UserAccount owner = registrationService.newAccount(new RegisterRequest(request.username(), request.displayName(), request.email(),
                 request.password(), Role.TEACHER));
         userAccountRepository.save(owner);
         workspaceService.beginSetup(name, timezone, owner.getId());

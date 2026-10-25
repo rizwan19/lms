@@ -3,10 +3,10 @@ package com.saasresearcher.learning.identity.service;
 import com.saasresearcher.learning.audit.api.AuditEntry;
 import com.saasresearcher.learning.audit.api.AuditService;
 import com.saasresearcher.learning.common.ApiException;
-import com.saasresearcher.learning.common.Role;
 import com.saasresearcher.learning.identity.api.TokenPurpose;
 import com.saasresearcher.learning.identity.config.IdentityProperties;
 import com.saasresearcher.learning.identity.dto.AccountViews.RegistrationReceipt;
+import com.saasresearcher.learning.identity.dto.RegisterRequest;
 import com.saasresearcher.learning.identity.entity.UserAccount;
 import com.saasresearcher.learning.identity.repository.UserAccountRepository;
 import com.saasresearcher.learning.notifications.api.EmailSender;
@@ -45,11 +45,8 @@ public class RegistrationService {
         this.clock = clock;
     }
 
-    public record RegisterCommand(String username, String displayName, String email, String password, Role role) {
-    }
-
     @Transactional
-    public RegistrationReceipt register(RegisterCommand command, String clientIp) {
+    public RegistrationReceipt register(RegisterRequest request, String clientIp) {
         if (workspace.getWorkspaceData().state() != WorkspaceState.ACTIVE) {
             throw ApiException.conflict(IdentityErrors.REGISTRATION_CLOSED, "Registration opens once the workspace setup is complete");
         }
@@ -57,10 +54,10 @@ public class RegistrationService {
             throw ApiException.conflict(IdentityErrors.EMAIL_NOT_CONFIGURED, "Email delivery is not configured; registration is unavailable");
         }
         rateLimiter.acquire("register-ip:" + clientIp, properties.registrationsPerIp());
-        if (command.role() == null) {
+        if (request.role() == null) {
             throw ApiException.invalid("role", "Choose TEACHER or STUDENT");
         }
-        UserAccount account = newAccount(command);
+        UserAccount account = newAccount(request);
         accounts.save(account);
         credentials.issue(account, TokenPurpose.VERIFY_EMAIL);
         audit.record(AuditEntry.success(account.getId(), "account.registered", "user", account.getId(), Map.of("role", account.getRole())));
@@ -68,17 +65,17 @@ public class RegistrationService {
     }
 
     /** Validates and creates an unverified account; uniqueness races are caught by the database constraints. */
-    UserAccount newAccount(RegisterCommand command) {
-        String username = AccountRules.username(command.username());
-        String normalizedEmail = AccountRules.email(command.email());
-        String displayName = AccountRules.displayName(command.displayName());
-        AccountRules.password("password", command.password());
+    UserAccount newAccount(RegisterRequest request) {
+        String username = AccountRules.username(request.username());
+        String normalizedEmail = AccountRules.email(request.email());
+        String displayName = AccountRules.displayName(request.displayName());
+        AccountRules.password("password", request.password());
         if (accounts.existsByUsername(username)) {
             throw ApiException.conflict(IdentityErrors.USERNAME_TAKEN, "That username is already in use");
         }
         if (accounts.existsByEmail(normalizedEmail)) {
             throw ApiException.conflict(IdentityErrors.EMAIL_TAKEN, "That email address is already in use");
         }
-        return new UserAccount(username, normalizedEmail, displayName, command.role(), credentials.hash(command.password()), clock.instant());
+        return new UserAccount(username, normalizedEmail, displayName, request.role(), credentials.hash(request.password()), clock.instant());
     }
 }
