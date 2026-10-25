@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Approved-teacher visibility into delivery health: SMTP configuration and terminally failed jobs. */
+/** Approved-teacher visibility into delivery health: email configuration and terminally failed jobs. */
 @RestController
 @RequestMapping("/admin")
 public class OperationsController {

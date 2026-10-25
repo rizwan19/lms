@@ -210,7 +210,7 @@ paths:
   /admin/system-status:
     get:
       tags: [operations]
-      summary: "SMTP configuration and failed job count (approved teachers)"
+      summary: "Email configuration and failed job count (approved teachers)"
       responses:
         '200': { description: OK }
         '4XX': { $ref: '#/components/responses/Problem' }

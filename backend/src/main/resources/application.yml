@@ -21,22 +21,6 @@ spring:
   session:
     jdbc:
       initialize-schema: never
-  mail:
-    # Optional: leave SMTP_HOST unset to run without email (temporary passwords and assisted resets).
-    host: ${SMTP_HOST:}
-    port: ${SMTP_PORT:587}
-    username: ${SMTP_USERNAME:}
-    password: ${SMTP_PASSWORD:}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-            required: true
-          connectiontimeout: 5000
-          timeout: 5000
-          writetimeout: 5000
 
 server:
   port: ${LEARNING_PORT:8080}
@@ -79,6 +63,9 @@ learning:
   # Canonical public origin used in emailed links, e.g. https://learn.example.org (required).
   public-origin: ${LEARNING_PUBLIC_ORIGIN}
   mail:
+    # Optional: leave BREVO_API_KEY unset to run without email (temporary passwords and assisted resets).
+    brevo-api-key: ${BREVO_API_KEY:}
+    # Required with Brevo: a sender verified in the Brevo account.
     from: ${LEARNING_MAIL_FROM:}
   storage:
     mode: ${LEARNING_STORAGE_MODE:local}

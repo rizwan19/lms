@@ -58,8 +58,8 @@ TLS ([deploy/Caddyfile.vps](deploy/Caddyfile.vps)).
 
 ## After installing
 
-- Email: [docs/runbooks/email-delivery.md](docs/runbooks/email-delivery.md) (optional; without SMTP, administrators
-  hand out temporary passwords).
+- Email: [docs/runbooks/email-delivery.md](docs/runbooks/email-delivery.md) (optional; set `BREVO_API_KEY` and
+  `LEARNING_MAIL_FROM`; without them, administrators hand out temporary passwords).
 - Media storage: local disk by default; S3-compatible object storage via `LEARNING_STORAGE_MODE=s3`.
 - Backups: [docs/runbooks/backup-restore.md](docs/runbooks/backup-restore.md). Schedule `scripts/backup.sh` and run
   `scripts/verify-backup.sh` on every archive.

@@ -6,7 +6,7 @@ type SystemStatus = { emailConfigured: boolean; failedJobs: number }
 type Maintenance = { active: boolean; reason: string | null; updatedAt: string }
 type FailedJob = { id: string; type: string; attempts: number; lastError: string | null; failedAt: string }
 
-/** Administrator view of delivery health: SMTP configuration and terminally failed jobs. */
+/** Administrator view of delivery health: email configuration and terminally failed jobs. */
 export function SystemStatusPanel() {
   const status = useQuery({ queryKey: ['system-status'], queryFn: () => api.get<SystemStatus>('/admin/system-status') })
   const failed = useQuery({

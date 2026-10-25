@@ -12,27 +12,20 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
+
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-/** Hashes passwords and issues one-time tokens; callers own the transaction. */
 @Component
+@RequiredArgsConstructor
 public class CredentialIssuer {
 
     private final PasswordEncoder passwordEncoder;
-    private final IdentityTokenRepository tokens;
+    private final IdentityTokenRepository identityTokenRepository;
     private final DurableJobs jobs;
     private final IdentityProperties properties;
     private final Clock clock;
-
-    CredentialIssuer(PasswordEncoder passwordEncoder, IdentityTokenRepository tokens, DurableJobs jobs, IdentityProperties properties,
-            Clock clock) {
-        this.passwordEncoder = passwordEncoder;
-        this.tokens = tokens;
-        this.jobs = jobs;
-        this.properties = properties;
-        this.clock = clock;
-    }
 
     public String hash(String password) {
         return passwordEncoder.encode(password);
@@ -46,20 +39,16 @@ public class CredentialIssuer {
         return passwordEncoder.matches(password, account.getPasswordHash());
     }
 
-    /**
-     * Revokes the user's open tokens of the purpose, creates a new one and queues its email. The stored hash belongs to a
-     * token nobody sees; the email job rotates it and sends the fresh token, so no usable token is ever persisted.
-     */
     void issue(UserAccount account, TokenPurpose purpose) {
         Instant now = clock.instant();
         revokeOpen(account, java.util.List.of(purpose));
         Duration ttl = purpose == TokenPurpose.RESET_PASSWORD ? properties.passwordResetTtl() : properties.emailVerificationTtl();
-        IdentityToken token = tokens.save(new IdentityToken(account.getId(), purpose, SecureTokens.sha256(SecureTokens.newToken()), now.plus(ttl), now));
+        IdentityToken token = identityTokenRepository.save(new IdentityToken(account.getId(), purpose, SecureTokens.sha256(SecureTokens.newToken()), now.plus(ttl), now));
         jobs.enqueue(JobRequest.now(IdentityTokenEmailHandler.TYPE, token.getId(), "identity-token-email:" + token.getId(), now));
     }
 
     void revokeOpen(UserAccount account, Collection<TokenPurpose> purposes) {
         Instant now = clock.instant();
-        tokens.lockOpen(account.getId(), purposes).forEach(open -> open.revoke(now));
+        identityTokenRepository.lockOpen(account.getId(), purposes).forEach(open -> open.revoke(now));
     }
 }

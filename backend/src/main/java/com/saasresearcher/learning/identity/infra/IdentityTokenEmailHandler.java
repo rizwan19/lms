@@ -17,8 +17,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 /**
  * Sends a one-time identity link. Each execution rotates the token under its row lock first, so after a retry only the
- * newest email's link works and a token consumed meanwhile is never made usable again; a crash after SMTP acceptance
- * may send a duplicate (documented at-least-once behaviour). Failures leave the account unverified.
+ * newest email's link works and a token consumed meanwhile is never made usable again; a crash after Brevo accepts the
+ * message may send a duplicate (documented at-least-once behaviour). Failures leave the account unverified.
  */
 @Component
 public class IdentityTokenEmailHandler implements JobHandler {

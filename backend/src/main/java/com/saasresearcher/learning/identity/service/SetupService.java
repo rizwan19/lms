@@ -48,7 +48,7 @@ public class SetupService {
             throw ApiException.conflict(IdentityErrors.SETUP_COMPLETED, "Setup has already been started");
         }
         if (!emailSender.isConfigured()) {
-            throw ApiException.conflict(IdentityErrors.EMAIL_NOT_CONFIGURED, "Configure SMTP before setup: the owner must verify their email");
+            throw ApiException.conflict(IdentityErrors.EMAIL_NOT_CONFIGURED, "Configure email before setup: the owner must verify their email");
         }
         String name = request.workspaceName() == null ? "" : request.workspaceName().trim();
         if (name.isEmpty() || name.length() > 200) {
