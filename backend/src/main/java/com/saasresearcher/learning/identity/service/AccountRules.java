@@ -4,7 +4,7 @@ import com.saasresearcher.learning.common.ApiException;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
-/** Normalization and validation for usernames, emails and passwords (spec §6). */
+/** Normalization and validation for usernames, emails and passwords. Every account has a unique email. */
 public final class AccountRules {
 
     private static final Pattern USERNAME = Pattern.compile("^[A-Za-z0-9._-]{3,64}$");
@@ -23,12 +23,8 @@ public final class AccountRules {
         return trimmed.toLowerCase(Locale.ROOT);
     }
 
-    /** Returns the normalized email, or null when absent. */
-    static String email(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        String normalized = value.trim().toLowerCase(Locale.ROOT);
+    public static String email(String value) {
+        String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
         if (normalized.length() > 254 || !EMAIL.matcher(normalized).matches()) {
             throw ApiException.invalid("email", "Enter a valid email address");
         }
@@ -47,5 +43,13 @@ public final class AccountRules {
         if (value == null || value.length() < PASSWORD_MIN || value.length() > PASSWORD_MAX) {
             throw ApiException.invalid(field, "Password must be " + PASSWORD_MIN + "-" + PASSWORD_MAX + " characters");
         }
+    }
+
+    static String reason(String value) {
+        String trimmed = value == null ? "" : value.trim();
+        if (trimmed.length() > 1000) {
+            throw ApiException.invalid("reason", "At most 1000 characters");
+        }
+        return trimmed.isEmpty() ? null : trimmed;
     }
 }

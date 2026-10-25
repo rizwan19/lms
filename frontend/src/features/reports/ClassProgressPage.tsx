@@ -2,12 +2,12 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api, query, type Page } from '../../shared/api'
 import { Pagination, QueryState, formatDateTime } from '../../shared/ui'
-import { useInstitutionTimezone } from '../../shared/useInstitution'
+import { useWorkspaceTimezone } from '../../shared/useWorkspace'
 import type { ProgressRow } from './types'
 
 /** Progress matrix: one row per student with explanations instead of bare numbers. */
 export function ClassProgressPage({ classId }: { classId: string }) {
-  const timeZone = useInstitutionTimezone()
+  const timeZone = useWorkspaceTimezone()
   const [page, setPage] = useState(0)
   const rows = useQuery({
     queryKey: ['report', 'progress', classId, page],

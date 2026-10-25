@@ -22,7 +22,12 @@ function Finished({ attempt }: { attempt: Attempt }) {
     <section className="card narrow">
       <h1>{attempt.examTitle}</h1>
       <p role="status">
-        {attempt.status === 'AWAITING_GRADING' ? 'Submitted. Your teacher will grade the written answers.' : 'Submitted.'} Results appear once they are published.
+        {attempt.status === 'EXPIRED'
+          ? 'Time ran out; your saved answers were submitted.'
+          : attempt.status === 'AWAITING_GRADING'
+            ? 'Submitted. Your teacher will grade the written answers.'
+            : 'Submitted.'}{' '}
+        Results appear once they are published.
       </p>
       <Link to={`/student/enrollments/${attempt.enrollmentId}`}>Back to course</Link>
     </section>

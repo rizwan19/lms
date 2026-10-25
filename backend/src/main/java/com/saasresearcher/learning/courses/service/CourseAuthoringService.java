@@ -1,192 +1,175 @@
 package com.saasresearcher.learning.courses.service;
 
 import com.saasresearcher.learning.audit.api.AuditEntry;
-import com.saasresearcher.learning.audit.api.AuditLog;
+import com.saasresearcher.learning.audit.api.AuditService;
 import com.saasresearcher.learning.common.Actor;
 import com.saasresearcher.learning.common.ApiException;
-import com.saasresearcher.learning.common.ErrorCodes;
 import com.saasresearcher.learning.common.PageQuery;
 import com.saasresearcher.learning.common.PageResponse;
-import com.saasresearcher.learning.common.Role;
+import com.saasresearcher.learning.common.Revisions;
+import com.saasresearcher.learning.courses.api.CourseEditionListener;
 import com.saasresearcher.learning.courses.api.CourseLesson;
 import com.saasresearcher.learning.courses.api.CourseSection;
+import com.saasresearcher.learning.courses.api.CourseStatus;
 import com.saasresearcher.learning.courses.dto.CourseViews.CourseDetail;
+import com.saasresearcher.learning.courses.dto.CourseViews.CourseSummary;
 import com.saasresearcher.learning.courses.dto.CourseViews.DraftHeader;
 import com.saasresearcher.learning.courses.dto.CourseViews.DraftView;
 import com.saasresearcher.learning.courses.dto.CourseViews.EditionView;
 import com.saasresearcher.learning.courses.dto.CourseViews.PreviewView;
-import com.saasresearcher.learning.courses.dto.CourseViews.TeacherView;
 import com.saasresearcher.learning.courses.dto.DraftInput;
-import com.saasresearcher.learning.courses.entity.CourseRows.CourseRow;
-import com.saasresearcher.learning.courses.entity.CourseRows.CourseStatus;
-import com.saasresearcher.learning.courses.entity.CourseRows.CourseSummary;
-import com.saasresearcher.learning.courses.entity.CourseRows.VersionRow;
-import com.saasresearcher.learning.courses.repository.CourseContentRepository;
+import com.saasresearcher.learning.courses.entity.Course;
+import com.saasresearcher.learning.courses.entity.CourseVersion;
+import com.saasresearcher.learning.courses.api.EditionStatus;
 import com.saasresearcher.learning.courses.repository.CourseRepository;
-import com.saasresearcher.learning.identity.api.AccountStatus;
-import com.saasresearcher.learning.identity.api.AccountSummary;
-import com.saasresearcher.learning.identity.api.IdentityAccess;
+import com.saasresearcher.learning.courses.repository.CourseVersionRepository;
 import com.saasresearcher.learning.media.api.MediaService;
 import java.time.Clock;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.Map;
-import java.util.Set;
+import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Stream;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Course identity, teacher assignment and draft editing. Only the single DRAFT edition is ever changed. */
+/**
+ * Course creation and draft editing by the single author. Verified teachers may create and edit private drafts while
+ * their approval is pending; publication needs approval. Only the single DRAFT edition is ever changed.
+ */
 @Service
 public class CourseAuthoringService {
 
     private final CourseRepository courses;
-    private final CourseContentRepository content;
-    private final CourseAccess access;
+    private final CourseVersionRepository versions;
+    private final CourseContent content;
+    private final CourseOwnershipServiceServiceImpl ownership;
     private final MediaService media;
-    private final IdentityAccess identity;
-    private final RequiredExams requiredExams;
-    private final AuditLog audit;
+    private final ObjectProvider<CourseEditionListener> listeners;
+    private final AuditService audit;
     private final Clock clock;
 
-    CourseAuthoringService(CourseRepository courses, CourseContentRepository content, CourseAccess access, MediaService media,
-            IdentityAccess identity, RequiredExams requiredExams, AuditLog audit, Clock clock) {
+    CourseAuthoringService(CourseRepository courses, CourseVersionRepository versions, CourseContent content, CourseOwnershipServiceServiceImpl ownership,
+            MediaService media, ObjectProvider<CourseEditionListener> listeners, AuditService audit, Clock clock) {
         this.courses = courses;
+        this.versions = versions;
         this.content = content;
-        this.access = access;
+        this.ownership = ownership;
         this.media = media;
-        this.identity = identity;
-        this.requiredExams = requiredExams;
+        this.listeners = listeners;
         this.audit = audit;
         this.clock = clock;
     }
 
     @Transactional
     public UUID create(String title, Actor actor) {
-        access.requireAuthorRole(actor);
+        actor.requireVerifiedTeacher();
         String trimmed = title == null ? "" : title.trim();
         if (trimmed.isEmpty() || trimmed.length() > DraftRules.MAX_TITLE) {
             throw ApiException.invalid("title", "Title must be 1-" + DraftRules.MAX_TITLE + " characters");
         }
-        UUID courseId = UUID.randomUUID();
-        courses.insertCourse(courseId, trimmed, actor.userId(), clock.instant());
-        courses.replaceTeachers(courseId, List.of(actor.userId()));
-        courses.insertDraft(UUID.randomUUID(), courseId, trimmed, "", null, clock.instant());
-        audit.record(AuditEntry.success(actor.userId(), "course.created", "course", courseId));
-        return courseId;
+        Course course = courses.save(new Course(actor.userId(), trimmed, clock.instant()));
+        versions.save(new CourseVersion(course.getId(), trimmed, "", null, clock.instant()));
+        audit.record(AuditEntry.success(actor.userId(), "course.created", "course", course.getId()));
+        return course.getId();
     }
 
+    /** The actor's own courses only. */
     @Transactional(readOnly = true)
     public PageResponse<CourseSummary> list(CourseStatus status, PageQuery page, Actor actor) {
-        access.requireAuthorRole(actor);
-        UUID teacher = actor.isAdministrator() ? null : actor.userId();
-        return PageResponse.of(courses.listCourses(teacher, status, page), page, courses.countCourses(teacher, status));
+        actor.requireVerifiedTeacher();
+        return PageResponse.of(courses.findByAuthorIdAndStatus(actor.userId(), status, page.pageable(Sort.by("title", "id"))), course -> {
+            Integer latest = versions.findFirstByCourseIdAndStatusOrderByEditionDesc(course.getId(), EditionStatus.PUBLISHED).map(CourseVersion::getEdition).orElse(null);
+            Long draft = versions.findByCourseIdAndStatus(course.getId(), EditionStatus.DRAFT).map(CourseVersion::getVersion).orElse(null);
+            return new CourseSummary(course.getId(), course.getTitle(), course.getStatus(), latest, draft, course.getUpdatedAt());
+        });
     }
 
     @Transactional(readOnly = true)
     public CourseDetail detail(UUID courseId, Actor actor) {
-        CourseRow course = access.requireCourse(courseId, actor);
-        List<VersionRow> editions = courses.editions(courseId);
-        DraftHeader draft = courses.findDraft(courseId)
-                .map(row -> new DraftHeader(row.id(), row.version(), editionOf(row.basedOnVersionId(), editions)))
+        ownership.requireAuthor(courseId, actor);
+        Course course = courses.findById(courseId).orElseThrow(ApiException::notFound);
+        List<CourseVersion> editions = versions.findByCourseIdAndStatusOrderByEditionDesc(courseId, EditionStatus.PUBLISHED);
+        DraftHeader draft = versions.findByCourseIdAndStatus(courseId, EditionStatus.DRAFT)
+                .map(row -> new DraftHeader(row.getId(), row.getVersion(), editionOf(row.getBasedOnVersionId(), editions)))
                 .orElse(null);
-        List<TeacherView> teachers = identity.summaries(courses.teachers(courseId)).values().stream()
-                .map(summary -> new TeacherView(summary.id(), summary.displayName()))
-                .sorted(Comparator.comparing(TeacherView::displayName))
-                .toList();
-        return new CourseDetail(course.id(), course.title(), course.status(), teachers,
-                editions.stream().map(row -> new EditionView(row.id(), row.edition(), row.title(), row.publishedAt())).toList(), draft);
+        return new CourseDetail(course.getId(), course.getTitle(), course.getStatus(), course.getAuthorId(),
+                editions.stream().map(row -> new EditionView(row.getId(), row.getEdition(), row.getTitle(), row.getPublishedAt())).toList(), draft);
     }
 
     @Transactional(readOnly = true)
     public DraftView draft(UUID courseId, Actor actor) {
-        access.requireCourse(courseId, actor);
+        ownership.requireAuthor(courseId, actor);
         return draftView(requireDraft(courseId));
     }
 
     @Transactional
     public DraftView saveDraft(UUID courseId, DraftInput input, Actor actor) {
-        access.requireCourse(courseId, actor);
-        VersionRow draft = requireDraft(courseId);
-        List<CourseSection> tree = DraftRules.normalize(input, content.sectionIds(draft.id()), content.lessonIds(draft.id()));
+        ownership.requireAuthor(courseId, actor);
+        CourseVersion draft = versions.lockDraft(courseId).orElseThrow(CourseAuthoringService::noDraft);
+        Revisions.require(input.expectedRevision(), draft.getVersion());
+        List<CourseSection> tree = DraftRules.normalize(input, content.sectionIds(draft.getId()), content.lessonIds(draft.getId()));
         requireReadableAssets(tree, actor);
-        List<UUID> examIds = input.requiredExamVersionIds() == null ? List.of() : List.copyOf(new LinkedHashSet<>(input.requiredExamVersionIds()));
-        requiredExams.require(draft.courseId(), examIds);
-        if (!courses.updateDraft(draft.id(), input.expectedRevision(), input.title().trim(),
-                input.description() == null ? "" : input.description().trim(), clock.instant())) {
-            throw ApiException.conflict(ErrorCodes.REVISION_CONFLICT,
-                    "The draft was changed by another request; reload and retry");
-        }
-        content.replaceTree(draft.id(), tree);
-        content.replaceRequiredExams(draft.id(), examIds);
-        return draftView(requireDraft(courseId));
+        draft.edit(input.title().trim(), input.description() == null ? "" : input.description().trim(), clock.instant());
+        versions.flush();
+        content.replaceTree(draft.getId(), tree);
+        return draftView(draft);
     }
 
     /** Starts a correction draft from a published edition; lesson IDs are new, assets are reused. */
     @Transactional
     public DraftView startDraft(UUID courseId, UUID fromVersionId, Actor actor) {
-        access.lockCourse(courseId, actor);
-        if (courses.findDraft(courseId).isPresent()) {
+        ownership.requireAuthor(courseId, actor);
+        ownership.lock(courseId);
+        if (versions.findByCourseIdAndStatus(courseId, EditionStatus.DRAFT).isPresent()) {
             throw ApiException.conflict(CourseErrors.DRAFT_EXISTS, "This course already has a draft");
         }
-        VersionRow source = courses.findVersion(fromVersionId)
-                .filter(version -> !version.isDraft() && version.courseId().equals(courseId))
+        CourseVersion source = versions.findById(fromVersionId)
+                .filter(version -> !version.isDraft() && version.getCourseId().equals(courseId))
                 .orElseThrow(ApiException::notFound);
-        UUID draftId = UUID.randomUUID();
-        courses.insertDraft(draftId, courseId, source.title(), source.description(), source.id(), clock.instant());
-        content.replaceTree(draftId, withNewIds(content.readTree(source.id())));
-        content.replaceRequiredExams(draftId, content.requiredExams(source.id()));
-        audit.record(AuditEntry.success(actor.userId(), "course.draft-started", "course", courseId, Map.of("fromEdition", source.edition())));
-        return draftView(requireDraft(courseId));
+        CourseVersion draft = versions.saveAndFlush(new CourseVersion(courseId, source.getTitle(), source.getDescription(), source.getId(), clock.instant()));
+        content.replaceTree(draft.getId(), withNewIds(content.readTree(source.getId())));
+        listeners.forEach(listener -> listener.draftStarted(courseId, source.getId(), draft.getId()));
+        audit.record(AuditEntry.success(actor.userId(), "course.draft-started", "course", courseId, Map.of("fromEdition", source.getEdition())));
+        return draftView(draft);
     }
 
+    /** Archiving hides the course from the catalog and stops new grants; it never removes access already granted. */
     @Transactional
     public void setStatus(UUID courseId, CourseStatus status, Actor actor) {
-        CourseRow course = access.lockCourse(courseId, actor);
-        courses.updateCourse(courseId, course.title(), status, clock.instant());
+        ownership.requirePublishAuthor(courseId, actor);
+        ownership.lock(courseId);
+        Course course = courses.findById(courseId).orElseThrow();
+        course.setStatus(status, clock.instant());
         audit.record(AuditEntry.success(actor.userId(), "course.status-changed", "course", courseId, Map.of("status", status)));
     }
 
-    @Transactional
-    public void setTeachers(UUID courseId, Set<UUID> teacherIds, Actor actor) {
-        if (!actor.isAdministrator()) {
-            throw ApiException.accessDenied("Administrator role required");
-        }
-        access.lockCourse(courseId, actor);
-        Map<UUID, AccountSummary> accounts = identity.summaries(teacherIds);
-        boolean valid = !teacherIds.isEmpty() && accounts.size() == teacherIds.size() && accounts.values().stream()
-                .allMatch(account -> account.status() == AccountStatus.ACTIVE && account.roles().contains(Role.TEACHER));
-        if (!valid) {
-            throw ApiException.invalid("teacherIds", "Choose at least one active teacher");
-        }
-        courses.replaceTeachers(courseId, teacherIds);
-        audit.record(AuditEntry.success(actor.userId(), "course.teachers-changed", "course", courseId, Map.of("teachers", teacherIds.size())));
-    }
-
-    /** Shows the draft (default when one exists) or any edition exactly as students would see it. */
+    /** Shows the draft (default when one exists) or any edition exactly as learners would see it. */
     @Transactional(readOnly = true)
     public PreviewView preview(UUID courseId, UUID versionId, Actor actor) {
-        access.requireCourse(courseId, actor);
-        VersionRow version = (versionId == null
-                ? courses.findDraft(courseId).or(() -> courses.editions(courseId).stream().findFirst())
-                : courses.findVersion(versionId).filter(row -> row.courseId().equals(courseId)))
+        ownership.requireAuthor(courseId, actor);
+        CourseVersion version = (versionId == null
+                ? versions.findByCourseIdAndStatus(courseId, EditionStatus.DRAFT)
+                        .or(() -> versions.findFirstByCourseIdAndStatusOrderByEditionDesc(courseId, EditionStatus.PUBLISHED))
+                : versions.findById(versionId).filter(row -> row.getCourseId().equals(courseId)))
                 .orElseThrow(ApiException::notFound);
-        return new PreviewView(version.id(), courseId, version.edition(), version.title(), version.description(), content.readTree(version.id()),
-                content.requiredExams(version.id()));
+        return new PreviewView(version.getId(), courseId, version.getEdition(), version.getTitle(), version.getDescription(), content.readTree(version.getId()));
     }
 
-    private VersionRow requireDraft(UUID courseId) {
-        return courses.findDraft(courseId)
-                .orElseThrow(() -> ApiException.conflict(CourseErrors.NO_DRAFT, "This course has no draft; start one from an edition"));
+    private CourseVersion requireDraft(UUID courseId) {
+        return versions.findByCourseIdAndStatus(courseId, EditionStatus.DRAFT).orElseThrow(CourseAuthoringService::noDraft);
     }
 
-    private DraftView draftView(VersionRow draft) {
-        return new DraftView(draft.id(), draft.courseId(), draft.version(), draft.title(), draft.description(), content.readTree(draft.id()),
-                content.requiredExams(draft.id()));
+    private static ApiException noDraft() {
+        return ApiException.conflict(CourseErrors.NO_DRAFT, "This course has no draft; start one from an edition");
+    }
+
+    private DraftView draftView(CourseVersion draft) {
+        return new DraftView(draft.getId(), draft.getCourseId(), draft.getVersion(), draft.getTitle(), draft.getDescription(), content.readTree(draft.getId()));
     }
 
     /** Every referenced file must be readable by the author, so drafts cannot be used to reach others' files. */
@@ -228,7 +211,9 @@ public class CourseAuthoringService {
                 .toList();
     }
 
-    private static Integer editionOf(UUID versionId, List<VersionRow> editions) {
-        return editions.stream().filter(row -> row.id().equals(versionId)).map(VersionRow::edition).findFirst().orElse(null);
+    private static Integer editionOf(UUID versionId, List<CourseVersion> editions) {
+        return Optional.ofNullable(versionId)
+                .flatMap(id -> editions.stream().filter(row -> row.getId().equals(id)).map(CourseVersion::getEdition).findFirst())
+                .orElse(null);
     }
 }

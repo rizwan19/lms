@@ -1,10 +1,10 @@
 package com.saasresearcher.learning.notifications.controller;
 
 import com.saasresearcher.learning.common.Actor;
-import com.saasresearcher.learning.common.ApiException;
 import com.saasresearcher.learning.common.PageQuery;
 import com.saasresearcher.learning.common.PageResponse;
 import com.saasresearcher.learning.notifications.api.EmailSender;
+import com.saasresearcher.learning.notifications.api.JobStatus;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Administrator visibility into delivery health: SMTP configuration and terminally failed jobs. */
+/** Approved-teacher visibility into delivery health: SMTP configuration and terminally failed jobs. */
 @RestController
 @RequestMapping("/admin")
 public class OperationsController {
@@ -29,33 +29,29 @@ public class OperationsController {
 
     @GetMapping("/system-status")
     SystemStatus status(Actor actor) {
-        requireAdministrator(actor);
-        long failed = jdbc.sql("select count(*) from background_jobs where status = 'FAILED'").query(Long.class).single();
+        actor.requireApprovedTeacher();
+        long failed = jdbc.sql("select count(*) from background_jobs where status = :failed").param("failed", JobStatus.FAILED.code()).query(Long.class).single();
         return new SystemStatus(email.isConfigured(), failed);
     }
 
     @GetMapping("/failed-jobs")
     PageResponse<FailedJob> failedJobs(@RequestParam(required = false) Integer page, @RequestParam(required = false) Integer size, Actor actor) {
-        requireAdministrator(actor);
+        actor.requireApprovedTeacher();
         PageQuery query = PageQuery.of(page, size);
         List<FailedJob> items = jdbc.sql("""
                         select id, type, aggregate_id, attempts, last_error, updated_at from background_jobs
-                        where status = 'FAILED' order by updated_at desc, id limit :limit offset :offset
+                        where status = :failed order by updated_at desc, id limit :limit offset :offset
                         """)
+                .param("failed", JobStatus.FAILED.code())
                 .param("limit", query.size())
                 .param("offset", query.offset())
                 .query((rs, row) -> new FailedJob(rs.getObject("id", UUID.class), rs.getString("type"), rs.getObject("aggregate_id", UUID.class),
                         rs.getInt("attempts"), rs.getString("last_error"), rs.getTimestamp("updated_at").toInstant()))
                 .list();
-        long total = jdbc.sql("select count(*) from background_jobs where status = 'FAILED'").query(Long.class).single();
+        long total = jdbc.sql("select count(*) from background_jobs where status = :failed").param("failed", JobStatus.FAILED.code()).query(Long.class).single();
         return PageResponse.of(items, query, total);
     }
 
-    private static void requireAdministrator(Actor actor) {
-        if (!actor.isAdministrator()) {
-            throw ApiException.accessDenied("Administrator role required");
-        }
-    }
 
     record SystemStatus(boolean emailConfigured, long failedJobs) {
     }

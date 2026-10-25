@@ -56,7 +56,7 @@ export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   WRITTEN: 'Written answer',
 }
 
-export type AttemptStatus = 'IN_PROGRESS' | 'SUBMITTED' | 'AWAITING_GRADING' | 'GRADED'
+export type AttemptStatus = 'IN_PROGRESS' | 'SUBMITTED' | 'AWAITING_GRADING' | 'GRADED' | 'EXPIRED'
 
 export type StudentExam = {
   assignmentId: string
@@ -74,7 +74,7 @@ export type StudentExam = {
   attempts: { id: string; attemptNumber: number; status: AttemptStatus; finalizedAt: string | null }[]
 }
 
-export type SavedAnswer = { questionId: string; selectedOptionIds: string[]; writtenText: string | null; revision: number; savedAt: string }
+export type SavedAnswer = { questionId: string; selectedOptionIds: string[]; writtenText: string | null; savedAt: string }
 
 export type Attempt = {
   id: string

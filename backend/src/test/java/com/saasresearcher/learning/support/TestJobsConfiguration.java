@@ -30,10 +30,11 @@ public class TestJobsConfiguration {
 
         private final List<EmailMessage> sent = new CopyOnWriteArrayList<>();
         private volatile boolean failing;
+        private volatile boolean configured = true;
 
         @Override
         public boolean isConfigured() {
-            return true;
+            return configured;
         }
 
         @Override
@@ -52,9 +53,14 @@ public class TestJobsConfiguration {
             this.failing = failing;
         }
 
+        public void configured(boolean configured) {
+            this.configured = configured;
+        }
+
         public void reset() {
             sent.clear();
             failing = false;
+            configured = true;
         }
     }
 

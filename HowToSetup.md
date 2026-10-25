@@ -46,6 +46,10 @@ cd backend && ./gradlew dockerUp      # build and start, wait until healthy
 cd backend && ./gradlew dockerDown    # stop; data stays in the Docker volumes
 ```
 
+`dockerUp` includes `deploy/compose.dev.yml`, exposing PostgreSQL at `127.0.0.1:5432` for local database clients.
+Connect to database `learning` as user `learning`, using `POSTGRES_PASSWORD` from `.env`.
+Port 5432 must be free on your computer. The production Compose command above keeps PostgreSQL internal.
+
 ## 3. Install on an Ubuntu VPS without containers
 
 Follow [docs/runbooks/install-vps.md](docs/runbooks/install-vps.md): PostgreSQL 17 from the OS packages, the

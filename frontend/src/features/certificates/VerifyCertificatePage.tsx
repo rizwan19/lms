@@ -3,9 +3,9 @@ import { useParams } from 'react-router'
 import { api, ApiError } from '../../shared/api'
 import { Spinner } from '../../shared/ui'
 
-type Verification = { status: 'VALID' | 'REVOKED'; institution: string | null; course: string | null; completedOn: string | null; student: string | null }
+type Verification = { status: 'VALID' | 'REVOKED'; workspace: string | null; course: string | null; completedOn: string | null; learner: string | null }
 
-/** Public page behind the certificate QR code; shows only what the institution allows. */
+/** Public page behind the certificate QR code; shows only what the workspace allows. */
 export function VerifyCertificatePage() {
   const { token = '' } = useParams()
   const result = useQuery({ queryKey: ['verify', token], queryFn: () => api.get<Verification>(`/public/certificates/${encodeURIComponent(token)}`), retry: false })
@@ -23,16 +23,16 @@ export function VerifyCertificatePage() {
             <strong>Valid certificate</strong>
           </p>
           <dl>
-            <dt>Institution</dt>
-            <dd>{result.data.institution}</dd>
+            <dt>Workspace</dt>
+            <dd>{result.data.workspace}</dd>
             <dt>Course</dt>
             <dd>{result.data.course}</dd>
             <dt>Completed on</dt>
             <dd>{result.data.completedOn}</dd>
-            {result.data.student && (
+            {result.data.learner && (
               <>
                 <dt>Student</dt>
-                <dd>{result.data.student}</dd>
+                <dd>{result.data.learner}</dd>
               </>
             )}
           </dl>

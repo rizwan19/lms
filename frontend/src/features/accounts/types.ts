@@ -1,12 +1,14 @@
-import type { Role, TemporaryCredential } from '../../shared/types'
+import type { Role, TeacherStatus, TemporaryCredential } from '../../shared/types'
 
 export type Account = {
   id: string
   username: string
   displayName: string
-  email: string | null
-  roles: Role[]
-  status: 'ACTIVE' | 'DISABLED'
+  email: string
+  role: Role
+  status: 'ACTIVE' | 'SUSPENDED'
+  emailVerified: boolean
+  teacherStatus: TeacherStatus | null
   createdAt: string
   revision: number
 }

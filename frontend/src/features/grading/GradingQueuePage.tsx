@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { api, query, type Page } from '../../shared/api'
 import { Pagination, QueryState, formatDateTime } from '../../shared/ui'
-import { useInstitutionTimezone } from '../../shared/useInstitution'
+import { useWorkspaceTimezone } from '../../shared/useWorkspace'
 import type { ClassSummary } from '../classrooms/types'
 import type { QueueRow } from './types'
 
@@ -11,7 +11,7 @@ const STATUS_LABELS: Record<QueueRow['gradeStatus'], string> = { DRAFT: 'Needs g
 
 export function GradingQueuePage() {
   const [params, setParams] = useSearchParams()
-  const timeZone = useInstitutionTimezone()
+  const timeZone = useWorkspaceTimezone()
   const classId = params.get('classId') ?? ''
   const status = params.get('status') ?? 'PENDING'
   const [page, setPage] = useState(0)

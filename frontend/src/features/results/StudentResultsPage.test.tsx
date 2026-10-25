@@ -3,12 +3,12 @@ import userEvent from '@testing-library/user-event'
 import { routes } from '../../app/routes'
 import { mockApi, renderRoutes } from '../../test-utils'
 
-const student = { id: 's1', username: 'student', displayName: 'Student', email: null, roles: ['STUDENT'], passwordChangeRequired: false }
+const student = { id: 's1', username: 'student', displayName: 'Student', email: 's@example.test', role: 'STUDENT', emailVerified: true, teacherStatus: null, capabilities: { canAdministerWorkspace: false, canPublishCourses: false, canLearn: true } }
 
 test('pending results never show a score; published ones show feedback without keys', async () => {
   mockApi({
     'GET /auth/me': { body: student },
-    'GET /institution': { body: { name: 'School', timezone: 'UTC', logoAssetId: null, certificateVerification: false, verificationShowsStudent: false, revision: 0 } },
+    'GET /workspace': { body: { name: 'School', timezone: 'UTC', logoAssetId: null, certificateVerification: false, verificationShowsStudent: false, revision: 0 } },
     'GET /notifications': { body: { items: [], page: 0, size: 20, total: 0 } },
     'GET /me/results': {
       body: [

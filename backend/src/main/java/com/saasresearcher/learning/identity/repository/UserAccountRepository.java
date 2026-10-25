@@ -1,6 +1,5 @@
 package com.saasresearcher.learning.identity.repository;
 
-import com.saasresearcher.learning.common.Role;
 import com.saasresearcher.learning.identity.entity.UserAccount;
 import jakarta.persistence.LockModeType;
 import java.util.Collection;
@@ -15,6 +14,10 @@ import org.springframework.data.repository.query.Param;
 
 public interface UserAccountRepository extends JpaRepository<UserAccount, UUID>, JpaSpecificationExecutor<UserAccount> {
 
+    String ACTIVE_APPROVED_TEACHER = "u.status = com.saasresearcher.learning.identity.api.AccountStatus.ACTIVE"
+            + " and u.role = com.saasresearcher.learning.common.Role.TEACHER"
+            + " and u.teacherStatus = com.saasresearcher.learning.common.TeacherStatus.APPROVED and u.emailVerifiedAt is not null";
+
     Optional<UserAccount> findByUsername(String username);
 
     Optional<UserAccount> findByEmail(String email);
@@ -25,12 +28,23 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, UUID>,
 
     List<UserAccount> findByIdIn(Collection<UUID> ids);
 
-    @Query("select count(u) > 0 from UserAccount u where :role member of u.roles")
-    boolean existsWithRole(@Param("role") Role role);
-
-    /** Locks every active administrator so last-administrator checks cannot race. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("select u from UserAccount u where u.status = com.saasresearcher.learning.identity.api.AccountStatus.ACTIVE"
-            + " and com.saasresearcher.learning.common.Role.ADMINISTRATOR member of u.roles")
-    List<UserAccount> lockActiveAdministrators();
+    @Query("select u from UserAccount u where u.id = :id")
+    Optional<UserAccount> lockById(@Param("id") UUID id);
+
+    /** {@code FOR SHARE} in UUID order, the global lock order for accounts. */
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query("select u from UserAccount u where u.id in :ids order by u.id")
+    List<UserAccount> lockSharedInOrder(@Param("ids") Collection<UUID> ids);
+
+    /** {@code FOR UPDATE} in UUID order, used by approval and suspension after the workspace lock. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from UserAccount u where u.id in :ids order by u.id")
+    List<UserAccount> lockInOrder(@Param("ids") Collection<UUID> ids);
+
+    @Query("select count(u) from UserAccount u where " + ACTIVE_APPROVED_TEACHER + " and u.id <> :excluded")
+    long countOtherActiveApprovedTeachers(@Param("excluded") UUID excludedId);
+
+    @Query("select u.id from UserAccount u where " + ACTIVE_APPROVED_TEACHER + " order by u.id")
+    List<UUID> activeApprovedTeacherIds();
 }

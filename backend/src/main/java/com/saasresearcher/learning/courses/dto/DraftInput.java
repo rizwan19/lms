@@ -4,8 +4,11 @@ import com.saasresearcher.learning.courses.api.VideoProvider;
 import java.util.List;
 import java.util.UUID;
 
-/** Client-supplied draft tree. IDs are optional and honoured only when they already belong to the draft. */
-public record DraftInput(long expectedRevision, String title, String description, List<SectionInput> sections, List<UUID> requiredExamVersionIds) {
+/**
+ * Client-supplied draft tree. IDs are optional and honoured only when they already belong to the draft. Exams are
+ * attached to the draft separately ({@code /courses/{id}/exams}).
+ */
+public record DraftInput(long expectedRevision, String title, String description, List<SectionInput> sections) {
 
     public record SectionInput(UUID id, String title, List<LessonInput> lessons) {
     }

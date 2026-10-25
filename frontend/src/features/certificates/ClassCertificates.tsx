@@ -7,7 +7,7 @@ import { STATUS_LABELS, type Certificate } from './types'
 
 /** Certificates of a class for its teachers: download, revoke with a reason, retry failed renders; reinstate (administrators). */
 export function ClassCertificates({ classId }: { classId: string }) {
-  const { activeRole } = useSession()
+  const { me } = useSession()
   const queryClient = useQueryClient()
   const [reasons, setReasons] = useState<Record<string, string>>({})
   const certificates = useQuery({ queryKey: ['certificates', classId], queryFn: () => api.get<Certificate[]>(`/certificates?classId=${classId}`) })
@@ -47,7 +47,7 @@ export function ClassCertificates({ classId }: { classId: string }) {
                           Retry
                         </button>
                       )}
-                      {(certificate.status !== 'REVOKED' || activeRole === 'ADMINISTRATOR') && (
+                      {(certificate.status !== 'REVOKED' || me?.capabilities.canAdministerWorkspace) && (
                         <>
                           <input
                             aria-label={`Reason for ${certificate.studentName}`}

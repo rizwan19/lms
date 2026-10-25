@@ -1,8 +1,12 @@
 package com.saasresearcher.learning.identity.service;
 
+import com.saasresearcher.learning.common.ApiException;
+import com.saasresearcher.learning.common.ErrorCodes;
+import com.saasresearcher.learning.identity.api.RateLimits;
 import com.saasresearcher.learning.identity.config.IdentityProperties;
 import java.sql.Timestamp;
 import java.time.Clock;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Component;
 
@@ -11,7 +15,7 @@ import org.springframework.stereotype.Component;
  * Statements run outside caller transactions so a rejected login still records its attempt.
  */
 @Component
-public class AuthRateLimiter {
+public class AuthRateLimiter implements RateLimits {
 
     private final JdbcClient jdbc;
     private final Clock clock;
@@ -21,6 +25,18 @@ public class AuthRateLimiter {
         this.jdbc = jdbc;
         this.clock = clock;
         this.properties = properties;
+    }
+
+    @Override
+    public void acquire(String bucket, int maxAttempts) {
+        if (exceeded(bucket, maxAttempts)) {
+            throw limited();
+        }
+        record(bucket);
+    }
+
+    static ApiException limited() {
+        return new ApiException(HttpStatus.TOO_MANY_REQUESTS, ErrorCodes.RATE_LIMITED, "Too many attempts; try again later");
     }
 
     boolean exceeded(String bucket, int maxAttempts) {

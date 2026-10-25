@@ -1,7 +1,6 @@
 package com.saasresearcher.learning.media.service;
 
 import com.saasresearcher.learning.media.config.MediaProperties;
-import com.saasresearcher.learning.media.entity.FileType;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;

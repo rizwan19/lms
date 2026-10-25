@@ -1,7 +1,7 @@
 import type { FieldErrors } from '../../shared/api'
 import { instantToZonedInput } from '../../shared/time'
 
-/** Optional start/end inputs entered in the institution timezone. */
+/** Optional start/end inputs entered in the workspace timezone. */
 export function ScheduleFields({ timeZone, startsAt, endsAt, errors }: { timeZone: string; startsAt?: string | null; endsAt?: string | null; errors: FieldErrors }) {
   return (
     <div className="inline-form">

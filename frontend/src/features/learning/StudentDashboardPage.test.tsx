@@ -3,10 +3,10 @@ import { routes } from '../../app/routes'
 import { mockApi, renderRoutes } from '../../test-utils'
 import type { DashboardEntry } from './types'
 
-const student = { id: 's1', username: 'student', displayName: 'রহিম', email: null, roles: ['STUDENT'], passwordChangeRequired: false }
+const student = { id: 's1', username: 'student', displayName: 'রহিম', email: 's@example.test', role: 'STUDENT', emailVerified: true, teacherStatus: null, capabilities: { canAdministerWorkspace: false, canPublishCourses: false, canLearn: true } }
 const common = {
   'GET /auth/me': { body: student },
-  'GET /institution': { body: { name: 'School', timezone: 'Asia/Dhaka', logoAssetId: null, revision: 0 } },
+  'GET /workspace': { body: { name: 'School', timezone: 'Asia/Dhaka', logoAssetId: null, revision: 0 } },
   'GET /notifications': { body: { items: [], page: 0, size: 20, total: 0 } },
 }
 const entry = (overrides: Partial<DashboardEntry>): DashboardEntry => ({

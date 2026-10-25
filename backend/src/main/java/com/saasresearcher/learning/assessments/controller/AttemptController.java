@@ -1,6 +1,6 @@
 package com.saasresearcher.learning.assessments.controller;
 
-import com.saasresearcher.learning.assessments.api.AnswerSaveCommand;
+import com.saasresearcher.learning.assessments.api.AnswerSaveRequest;
 import com.saasresearcher.learning.assessments.api.AnswerSaved;
 import com.saasresearcher.learning.assessments.api.AttemptOutcome;
 import com.saasresearcher.learning.assessments.api.AttemptService;
@@ -8,6 +8,8 @@ import com.saasresearcher.learning.assessments.api.AttemptView;
 import com.saasresearcher.learning.assessments.service.AnswerService;
 import com.saasresearcher.learning.common.Actor;
 import java.util.UUID;
+
+import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -15,35 +17,30 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
-/** A student's own attempts. Responses never include keys or unpublished grades. */
 @RestController
+@RequiredArgsConstructor
 public class AttemptController {
 
-    private final AttemptService attempts;
-    private final AnswerService answers;
+    private final AttemptService attemptService;
+    private final AnswerService answerService;
 
-    AttemptController(AttemptService attempts, AnswerService answers) {
-        this.attempts = attempts;
-        this.answers = answers;
-    }
-
-    @PostMapping("/exam-assignments/{id}/attempts")
+    @PostMapping("/exams/{id}/attempts")
     AttemptView start(@PathVariable UUID id, Actor actor) {
-        return attempts.start(id, actor);
+        return attemptService.startAttempt(id, actor);
     }
 
     @GetMapping("/attempts/{id}")
-    AttemptView get(@PathVariable UUID id, Actor actor) {
-        return attempts.get(id, actor);
+    AttemptView getAttempt(@PathVariable UUID id, Actor actor) {
+        return attemptService.get(id, actor);
     }
 
     @PutMapping("/attempts/{id}/answers/{questionId}")
-    AnswerSaved save(@PathVariable UUID id, @PathVariable UUID questionId, @RequestBody AnswerSaveCommand command, Actor actor) {
-        return answers.save(id, questionId, command, actor);
+    AnswerSaved saveAnswer(@PathVariable UUID id, @PathVariable UUID questionId, @RequestBody AnswerSaveRequest request, Actor actor) {
+        return answerService.saveAnswer(id, questionId, request, actor);
     }
 
     @PostMapping("/attempts/{id}/submit")
     AttemptOutcome submit(@PathVariable UUID id, Actor actor) {
-        return answers.submit(id, actor);
+        return answerService.submit(id, actor);
     }
 }

@@ -1,7 +1,6 @@
 package com.saasresearcher.learning.operations.controller;
 
 import com.saasresearcher.learning.common.Actor;
-import com.saasresearcher.learning.common.ApiException;
 import com.saasresearcher.learning.operations.service.MaintenanceService.State;
 import com.saasresearcher.learning.operations.service.MaintenanceService;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,9 +21,7 @@ public class MaintenanceController {
 
     @GetMapping
     State get(Actor actor) {
-        if (!actor.isAdministrator()) {
-            throw ApiException.accessDenied("Administrator role required");
-        }
+        actor.requireApprovedTeacher();
         return maintenance.state();
     }
 

@@ -106,7 +106,7 @@ a.button.primary { background: var(--primary); color: var(--primary-text); borde
 .questions { list-style: none; padding: 0; display: grid; gap: 1rem; }
 .prompt { white-space: pre-wrap; }
 .save-status { font-size: 0.9rem; color: var(--muted); display: inline-flex; gap: 0.5rem; align-items: center; }
-.save-status.error, .save-status.conflict { color: var(--danger); }
+.save-status.error { color: var(--danger); }
 .empty { color: var(--muted); padding: 1.5rem; text-align: center; border: 1px dashed var(--border); border-radius: 8px; }
 
 .table-scroll { overflow-x: auto; }

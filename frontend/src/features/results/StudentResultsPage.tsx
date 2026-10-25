@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../../shared/api'
 import { QueryState, formatDateTime } from '../../shared/ui'
-import { useInstitutionTimezone } from '../../shared/useInstitution'
+import { useWorkspaceTimezone } from '../../shared/useWorkspace'
 
 type ResultSummary = {
   attemptId: string
@@ -33,7 +33,7 @@ type ResultDetail = {
 }
 
 export function StudentResultsPage() {
-  const timeZone = useInstitutionTimezone()
+  const timeZone = useWorkspaceTimezone()
   const [open, setOpen] = useState<string | null>(null)
   const results = useQuery({ queryKey: ['me', 'results'], queryFn: () => api.get<ResultSummary[]>('/me/results') })
   return (

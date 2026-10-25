@@ -6,7 +6,7 @@ import { ErrorMessage, Field, fieldErrors } from '../../shared/ui'
 import { useSession } from '../../app/session'
 
 export function ChangePasswordPage() {
-  const { me, refresh } = useSession()
+  const { refresh } = useSession()
   const navigate = useNavigate()
   const [mismatch, setMismatch] = useState(false)
   const change = useMutation({
@@ -21,7 +21,6 @@ export function ChangePasswordPage() {
   return (
     <section className="card narrow">
       <h1>Change password</h1>
-      {me?.passwordChangeRequired && <p className="notice">You signed in with a temporary password. Choose a new password to continue.</p>}
       <form
         onSubmit={(event) => {
           event.preventDefault()

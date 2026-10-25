@@ -3,18 +3,17 @@ package com.saasresearcher.learning.courses.controller;
 import com.saasresearcher.learning.common.Actor;
 import com.saasresearcher.learning.common.PageQuery;
 import com.saasresearcher.learning.common.PageResponse;
+import com.saasresearcher.learning.courses.api.CourseStatus;
 import com.saasresearcher.learning.courses.api.PublishedCourse;
 import com.saasresearcher.learning.courses.dto.CourseViews.CourseDetail;
+import com.saasresearcher.learning.courses.dto.CourseViews.CourseSummary;
 import com.saasresearcher.learning.courses.dto.CourseViews.DraftView;
 import com.saasresearcher.learning.courses.dto.CourseViews.PreviewView;
 import com.saasresearcher.learning.courses.dto.DraftInput;
-import com.saasresearcher.learning.courses.entity.CourseRows.CourseStatus;
-import com.saasresearcher.learning.courses.entity.CourseRows.CourseSummary;
 import com.saasresearcher.learning.courses.service.CourseAuthoringService;
 import com.saasresearcher.learning.courses.service.CoursePublicationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
-import java.util.Set;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +26,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+/** The author's own courses. Every course route answers 404 to anyone but its author. */
 @RestController
 @RequestMapping("/courses")
 public class CourseController {
@@ -73,6 +73,7 @@ public class CourseController {
         return authoring.startDraft(id, request.fromVersionId(), actor);
     }
 
+    /** Approved authors only. */
     @PostMapping("/{id}/publish")
     PublishedCourse publish(@PathVariable UUID id, @RequestBody Publish request, Actor actor) {
         return publication.publish(id, request.expectedRevision(), actor);
@@ -95,12 +96,6 @@ public class CourseController {
         authoring.setStatus(id, CourseStatus.ACTIVE, actor);
     }
 
-    @PutMapping("/{id}/teachers")
-    CourseDetail setTeachers(@PathVariable UUID id, @Valid @RequestBody Teachers request, Actor actor) {
-        authoring.setTeachers(id, request.teacherIds(), actor);
-        return authoring.detail(id, actor);
-    }
-
     record NewCourse(@NotNull String title) {
     }
 
@@ -108,8 +103,5 @@ public class CourseController {
     }
 
     record Publish(long expectedRevision) {
-    }
-
-    record Teachers(@NotNull Set<UUID> teacherIds) {
     }
 }

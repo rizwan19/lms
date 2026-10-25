@@ -5,8 +5,8 @@ import { mockApi, renderRoutes } from '../test-utils'
 
 const anonymous = {
   'GET /auth/me': { status: 401, body: { code: 'UNAUTHENTICATED' } },
-  'GET /setup': { body: { required: false } },
-  'GET /institution': { body: { name: 'Shapla School', timezone: 'Asia/Dhaka', revision: 0 } },
+  'GET /setup': { body: false },
+  'GET /workspace': { body: { name: 'Shapla School', timezone: 'Asia/Dhaka', revision: 0 } },
 }
 
 test('anonymous visitors are sent to sign in', async () => {
@@ -28,12 +28,23 @@ test('a failed sign-in shows the server message', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('Invalid username or password')
 })
 
-test('a temporary password forces the change-password screen', async () => {
+test('an unverified email forces the verify-email screen', async () => {
   mockApi({
     ...anonymous,
-    'GET /auth/me': { body: { id: '1', username: 'student', displayName: 'Student', email: null, roles: ['STUDENT'], passwordChangeRequired: true } },
+    'GET /auth/me': {
+      body: {
+        id: '1',
+        username: 'student',
+        displayName: 'Student',
+        email: 'student@example.test',
+        role: 'STUDENT',
+        emailVerified: false,
+        teacherStatus: null,
+        capabilities: { canAdministerWorkspace: false, canPublishCourses: false, canLearn: false },
+      },
+    },
   })
   renderRoutes(routes, '/admin/settings')
-  expect(await screen.findByRole('heading', { name: 'Change password' })).toBeInTheDocument()
-  expect(screen.getByText(/temporary password/)).toBeInTheDocument()
+  expect(await screen.findByRole('heading', { name: 'Verify email' })).toBeInTheDocument()
+  expect(screen.getByText(/student@example.test/)).toBeInTheDocument()
 })

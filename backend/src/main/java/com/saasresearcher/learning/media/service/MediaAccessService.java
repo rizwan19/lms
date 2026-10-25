@@ -18,7 +18,10 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Default deny: administrators, the uploader and registered linking policies may read an available asset. */
+/**
+ * Default deny: the uploader and registered linking policies (course author, active learner of a using edition, public
+ * logo) may read an available asset. Workspace administration grants no access to course files.
+ */
 @Service
 public class MediaAccessService implements MediaService, MediaCatalog {
 
@@ -36,19 +39,18 @@ public class MediaAccessService implements MediaService, MediaCatalog {
     @Transactional(readOnly = true)
     public InputStream open(UUID assetId) throws IOException {
         MediaAsset asset = assets.findById(assetId).filter(MediaAsset::isAvailable).orElseThrow(ApiException::notFound);
-        return store.openRange(asset.storageKey(), ByteRange.whole(store.stat(asset.storageKey()).sizeBytes())).content();
+        return store.openRange(asset.getStorageKey(), ByteRange.whole(store.stat(asset.getStorageKey()).sizeBytes())).content();
     }
 
     @Override
     @Transactional(readOnly = true)
     public AuthorizedAsset authorizeRead(UUID assetId, Actor actor) {
         MediaAsset asset = assets.findById(assetId).filter(MediaAsset::isAvailable).orElseThrow(ApiException::notFound);
-        boolean allowed = actor.isAdministrator() || asset.uploadedBy().equals(actor.userId())
-                || policies.stream().anyMatch(policy -> policy.canRead(assetId, actor));
+        boolean allowed = asset.getUploadedBy().equals(actor.userId()) || policies.stream().anyMatch(policy -> policy.canRead(assetId, actor));
         if (!allowed) {
             throw ApiException.notFound();
         }
-        return new AuthorizedAsset(asset.toMetadata(), asset.storageKey());
+        return new AuthorizedAsset(asset.toMetadata(), asset.getStorageKey());
     }
 
     @Override

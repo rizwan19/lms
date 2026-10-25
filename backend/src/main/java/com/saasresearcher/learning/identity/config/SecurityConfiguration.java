@@ -49,8 +49,8 @@ public class SecurityConfiguration implements WebMvcConfigurer {
                         .logoutUrl(API + "/auth/logout")
                         .logoutSuccessHandler(new HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT)))
                 .authorizeHttpRequests(requests -> requests
-                        .requestMatchers(HttpMethod.GET, API + "/auth/csrf", API + "/setup", API + "/institution").permitAll()
-                        .requestMatchers(HttpMethod.POST, API + "/auth/login", API + "/setup", API + "/auth/invitations/accept",
+                        .requestMatchers(HttpMethod.GET, API + "/auth/csrf", API + "/setup", API + "/workspace", API + "/catalog/**").permitAll()
+                        .requestMatchers(HttpMethod.POST, API + "/auth/login", API + "/setup", API + "/auth/register", API + "/auth/email/verify",
                                 API + "/auth/password-reset/request", API + "/auth/password-reset/confirm").permitAll()
                         .requestMatchers(API + "/public/**", "/error", "/actuator/health/**").permitAll()
                         .anyRequest().authenticated())

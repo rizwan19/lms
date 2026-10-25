@@ -24,6 +24,9 @@ class DemoModeIT extends PostgresIntegrationTest {
             ApiClient session = new ApiClient("http://localhost:" + demo.getEnvironment().getProperty("local.server.port") + "/api/v1");
             session.get("/auth/csrf");
             assertThat(session.post("/auth/login", Map.of("username", "demo-teacher", "password", "demo-password-not-secret")).status()).isEqualTo(200);
+            session.get("/auth/csrf");
+            assertThat(session.get("/auth/me").json().path("capabilities").path("canPublishCourses").asBoolean()).isTrue();
+            assertThat(session.get("/setup").json().asString()).isEqualTo("ACTIVE");
         }
     }
 

@@ -5,7 +5,7 @@ import type { SavedAnswer } from './types'
 
 function classify(error: unknown): SaveFailure {
   if (!(error instanceof ApiError)) return {}
-  return { code: error.code, current: (error.body as { current?: SavedAnswer | null } | undefined)?.current }
+  return { code: error.code }
 }
 
 /** Binds an attempt's {@link AnswerStore} to React and warns before leaving with unsaved answers. */

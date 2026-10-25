@@ -5,7 +5,7 @@ import { api, query, type Page } from '../../shared/api'
 import type { TemporaryCredential } from '../../shared/types'
 import { zonedInputToInstant } from '../../shared/time'
 import { ErrorMessage, Field, Pagination, QueryState, fieldErrors, formatDateTime } from '../../shared/ui'
-import { useInstitutionTimezone } from '../../shared/useInstitution'
+import { useWorkspaceTimezone } from '../../shared/useWorkspace'
 import { useSession } from '../../app/session'
 import { CreateAccountForm } from '../accounts/CreateAccountForm'
 import { CredentialNotice } from '../accounts/CredentialNotice'
@@ -43,7 +43,7 @@ export function ClassDetailPage() {
 
 function ClassSettings({ item }: { item: ClassDetail }) {
   const queryClient = useQueryClient()
-  const timeZone = useInstitutionTimezone()
+  const timeZone = useWorkspaceTimezone()
   const onSuccess = (updated: ClassDetail) => {
     queryClient.setQueryData(['class', item.id], updated)
     queryClient.invalidateQueries({ queryKey: ['classes'] })
@@ -92,9 +92,9 @@ function ClassSettings({ item }: { item: ClassDetail }) {
 }
 
 function Teachers({ item }: { item: ClassDetail }) {
-  const { activeRole } = useSession()
+  const { me } = useSession()
   const queryClient = useQueryClient()
-  const isAdministrator = activeRole === 'ADMINISTRATOR'
+  const isAdministrator = me?.capabilities.canAdministerWorkspace ?? false
   const teachers = useQuery({ queryKey: ['users', 'teachers'], queryFn: () => api.get<Page<Account>>('/users?role=TEACHER&size=100'), enabled: isAdministrator })
   const save = useMutation({
     mutationFn: (teacherIds: string[]) => api.put<ClassDetail>(`/classes/${item.id}/teachers`, { teacherIds }),
@@ -135,7 +135,7 @@ const STATUSES: EnrollmentStatus[] = ['ACTIVE', 'SUSPENDED', 'WITHDRAWN']
 
 function Roster({ classId, archived }: { classId: string; archived: boolean }) {
   const queryClient = useQueryClient()
-  const timeZone = useInstitutionTimezone()
+  const timeZone = useWorkspaceTimezone()
   const [page, setPage] = useState(0)
   const [filter, setFilter] = useState<EnrollmentStatus | ''>('')
   const [creating, setCreating] = useState(false)

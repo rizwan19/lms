@@ -1,6 +1,9 @@
 # Build context: repository root.  docker build -f deploy/backend.Dockerfile .
 FROM eclipse-temurin:21-jdk-noble AS build
 WORKDIR /src
+# Small Docker VMs (Colima defaults to 2 GiB, no swap) OOM-kill an uncapped Gradle build next to a running stack.
+RUN mkdir -p /root/.gradle \
+    && echo 'org.gradle.jvmargs=-Xmx512m -XX:MaxMetaspaceSize=320m -XX:+UseSerialGC' > /root/.gradle/gradle.properties
 COPY backend/gradle gradle
 COPY backend/gradlew backend/settings.gradle.kts backend/build.gradle.kts backend/gradle.lockfile ./
 RUN ./gradlew -q --no-daemon dependencies

@@ -3,10 +3,10 @@ import userEvent from '@testing-library/user-event'
 import { routes } from '../../app/routes'
 import { mockApi, renderRoutes } from '../../test-utils'
 
-const teacher = { id: 't1', username: 'teacher', displayName: 'Teacher', email: 't@example.test', roles: ['TEACHER'], passwordChangeRequired: false }
+const teacher = { id: 't1', username: 'teacher', displayName: 'Teacher', email: 't@example.test', role: 'TEACHER', emailVerified: true, teacherStatus: 'APPROVED', capabilities: { canAdministerWorkspace: true, canPublishCourses: true, canLearn: true } }
 const common = {
   'GET /auth/me': { body: teacher },
-  'GET /institution': { body: { name: 'School', timezone: 'UTC', logoAssetId: null, revision: 0 } },
+  'GET /workspace': { body: { name: 'School', timezone: 'UTC', logoAssetId: null, revision: 0 } },
   'GET /notifications': { body: { items: [], page: 0, size: 20, total: 0 } },
 }
 

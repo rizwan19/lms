@@ -1,11 +1,11 @@
 package com.saasresearcher.learning.assessments.service;
 
 import com.saasresearcher.learning.assessments.api.QuestionType;
-import com.saasresearcher.learning.assessments.dto.ExamDraftInput.OptionInput;
-import com.saasresearcher.learning.assessments.dto.ExamDraftInput.QuestionInput;
-import com.saasresearcher.learning.assessments.dto.ExamDraftInput;
-import com.saasresearcher.learning.assessments.entity.ExamQuestion.Option;
-import com.saasresearcher.learning.assessments.entity.ExamQuestion;
+import com.saasresearcher.learning.assessments.dto.ExamDraftRequest.OptionInput;
+import com.saasresearcher.learning.assessments.dto.ExamDraftRequest.QuestionInput;
+import com.saasresearcher.learning.assessments.dto.ExamDraftRequest;
+import com.saasresearcher.learning.assessments.dto.ExamViews.OptionContent;
+import com.saasresearcher.learning.assessments.dto.ExamViews.QuestionContent;
 import com.saasresearcher.learning.common.ApiException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -15,10 +15,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
-/**
- * Exam limits (spec §11): 1-100 questions, prompts up to 10,000 characters, positive points with two decimals.
- * Drafts may be incomplete; publication additionally requires complete answer keys.
- */
 public final class ExamRules {
 
     static final int MAX_QUESTIONS = 100;
@@ -32,7 +28,7 @@ public final class ExamRules {
     private ExamRules() {
     }
 
-    static List<ExamQuestion> normalize(ExamDraftInput input, Set<UUID> draftQuestionIds, Set<UUID> draftOptionIds) {
+    static List<QuestionContent> normalize(ExamDraftRequest input, Set<UUID> questionIds, Set<UUID> optionIds) {
         ExamRules rules = new ExamRules();
         rules.text("title", input.title(), 200, true);
         rules.text("instructions", input.instructions(), MAX_TEXT, false);
@@ -44,37 +40,36 @@ public final class ExamRules {
         if (questions.size() > MAX_QUESTIONS) {
             rules.errors.put("questions", "At most " + MAX_QUESTIONS + " questions");
         }
-        List<ExamQuestion> result = new ArrayList<>();
+        List<QuestionContent> result = new ArrayList<>();
         for (int q = 0; q < questions.size(); q++) {
-            result.add(rules.question("questions[" + q + "]", questions.get(q), draftQuestionIds, draftOptionIds));
+            result.add(rules.question("questions[" + q + "]", questions.get(q), questionIds, optionIds));
         }
         rules.throwIfAny();
         return result;
     }
 
-    /** Publication needs at least one question and a complete, unambiguous key for every objective question. */
-    static void requirePublishable(String title, List<ExamQuestion> questions) {
+    static void requirePublishable(String path, String title, List<QuestionContent> questions) {
         ExamRules rules = new ExamRules();
-        rules.text("title", title, 200, true);
+        rules.text(path + ".title", title, 200, true);
         if (questions.isEmpty()) {
-            rules.errors.put("questions", "Add at least one question before publishing");
+            rules.errors.put(path + ".questions", "Add at least one question before publishing");
         }
         for (int q = 0; q < questions.size(); q++) {
-            ExamQuestion question = questions.get(q);
-            long correct = question.options().stream().filter(Option::correct).count();
+            QuestionContent question = questions.get(q);
+            long correct = question.options().stream().filter(OptionContent::correct).count();
             String problem = switch (question.type()) {
                 case SINGLE_CHOICE, TRUE_FALSE -> question.options().size() >= 2 && correct == 1 ? null : "Mark exactly one correct answer";
                 case MULTIPLE_SELECT -> question.options().size() >= 2 && correct >= 1 ? null : "Mark at least one correct answer";
                 case WRITTEN -> null;
             };
             if (problem != null) {
-                rules.errors.put("questions[" + q + "].options", problem);
+                rules.errors.put(path + ".questions[" + q + "].options", problem);
             }
         }
         rules.throwIfAny();
     }
 
-    private ExamQuestion question(String path, QuestionInput input, Set<UUID> draftQuestionIds, Set<UUID> draftOptionIds) {
+    private QuestionContent question(String path, QuestionInput input, Set<UUID> draftQuestionIds, Set<UUID> draftOptionIds) {
         if (input.type() == null) {
             errors.put(path + ".type", "Required");
         }
@@ -86,12 +81,12 @@ public final class ExamRules {
             errors.put(path + ".points", "Use positive points up to 1000 with at most two decimals");
             points = BigDecimal.ONE;
         }
-        List<Option> options = options(path, input, draftOptionIds);
-        return new ExamQuestion(keep(input.id(), draftQuestionIds), input.type() == null ? QuestionType.WRITTEN : input.type(),
+        List<OptionContent> options = options(path, input, draftOptionIds);
+        return new QuestionContent(keep(input.id(), draftQuestionIds), input.type() == null ? QuestionType.WRITTEN : input.type(),
                 trim(input.prompt()), points.setScale(2), trim(input.explanation()), trim(input.gradingNotes()), options);
     }
 
-    private List<Option> options(String path, QuestionInput input, Set<UUID> draftOptionIds) {
+    private List<OptionContent> options(String path, QuestionInput input, Set<UUID> draftOptionIds) {
         List<OptionInput> options = input.options() == null ? List.of() : input.options();
         if (input.type() == QuestionType.WRITTEN) {
             return List.of();
@@ -99,20 +94,20 @@ public final class ExamRules {
         if (input.type() == QuestionType.TRUE_FALSE) {
             boolean trueCorrect = !options.isEmpty() && options.getFirst().correct();
             boolean falseCorrect = options.size() > 1 && options.get(1).correct();
-            List<Option> normalized = new ArrayList<>();
+            List<OptionContent> normalized = new ArrayList<>();
             for (int i = 0; i < 2; i++) {
                 UUID id = i < options.size() ? options.get(i).id() : null;
-                normalized.add(new Option(keep(id, draftOptionIds), TRUE_FALSE.get(i), i == 0 ? trueCorrect : falseCorrect));
+                normalized.add(new OptionContent(keep(id, draftOptionIds), TRUE_FALSE.get(i), i == 0 ? trueCorrect : falseCorrect));
             }
             return normalized;
         }
         if (options.size() > MAX_OPTIONS) {
             errors.put(path + ".options", "At most " + MAX_OPTIONS + " options");
         }
-        List<Option> normalized = new ArrayList<>();
+        List<OptionContent> normalized = new ArrayList<>();
         for (int o = 0; o < options.size(); o++) {
             text(path + ".options[" + o + "].label", options.get(o).label(), 1000, true);
-            normalized.add(new Option(keep(options.get(o).id(), draftOptionIds), trim(options.get(o).label()), options.get(o).correct()));
+            normalized.add(new OptionContent(keep(options.get(o).id(), draftOptionIds), trim(options.get(o).label()), options.get(o).correct()));
         }
         return normalized;
     }

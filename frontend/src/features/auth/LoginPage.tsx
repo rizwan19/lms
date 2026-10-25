@@ -1,16 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate } from 'react-router'
 import { api } from '../../shared/api'
-import type { Me } from '../../shared/types'
+import type { Profile } from '../../shared/types'
 import { ErrorMessage, Field } from '../../shared/ui'
 import { useSession } from '../../app/session'
 
 export function LoginPage() {
   const { me } = useSession()
   const queryClient = useQueryClient()
-  const setup = useQuery({ queryKey: ['setup'], queryFn: () => api.get<{ required: boolean }>('/setup') })
+  const setup = useQuery({ queryKey: ['setup'], queryFn: () => api.get<boolean>('/setup') })
   const login = useMutation({
-    mutationFn: (credentials: { username: string; password: string }) => api.post<Me>('/auth/login', credentials),
+    mutationFn: (credentials: { username: string; password: string }) => api.post<Profile>('/auth/login', credentials),
     onSuccess: async (account) => {
       await api.get('/auth/csrf')
       queryClient.setQueryData(['me'], account)
@@ -18,7 +18,7 @@ export function LoginPage() {
   })
 
   if (me) return <Navigate to="/" replace />
-  if (setup.data?.required) return <Navigate to="/setup" replace />
+  if (setup.data) return <Navigate to="/setup" replace />
 
   return (
     <section className="card narrow">

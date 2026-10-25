@@ -1,6 +1,6 @@
 package com.saasresearcher.learning.completion.controller;
 
-import com.saasresearcher.learning.classrooms.api.EnrollmentAccess;
+import com.saasresearcher.learning.enrollment.api.EnrollmentAccessService;
 import com.saasresearcher.learning.common.Actor;
 import com.saasresearcher.learning.completion.api.CompletionState;
 import com.saasresearcher.learning.completion.service.CompletionReconciler;
@@ -9,14 +9,14 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
-/** A student's own completion requirements, including exams still waiting for published grades. */
+/** A learner's own completion requirements, including exams still waiting for published grades. */
 @RestController
 public class CompletionController {
 
     private final CompletionReconciler completions;
-    private final EnrollmentAccess enrollments;
+    private final EnrollmentAccessService enrollments;
 
-    CompletionController(CompletionReconciler completions, EnrollmentAccess enrollments) {
+    CompletionController(CompletionReconciler completions, EnrollmentAccessService enrollments) {
         this.completions = completions;
         this.enrollments = enrollments;
     }

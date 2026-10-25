@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { api } from '../../shared/api'
 import { QueryState, formatDateTime } from '../../shared/ui'
-import { useInstitutionTimezone } from '../../shared/useInstitution'
+import { useWorkspaceTimezone } from '../../shared/useWorkspace'
 import { ProgressBar } from './ProgressBar'
 import type { DashboardEntry } from './types'
 
@@ -16,7 +16,7 @@ function availability(entry: DashboardEntry, timeZone: string): string {
 }
 
 export function StudentDashboardPage() {
-  const timeZone = useInstitutionTimezone()
+  const timeZone = useWorkspaceTimezone()
   const learning = useQuery({ queryKey: ['me', 'learning'], queryFn: () => api.get<DashboardEntry[]>('/me/learning') })
   return (
     <section>

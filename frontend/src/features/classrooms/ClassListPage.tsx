@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router'
 import { api, query, type Page } from '../../shared/api'
 import { zonedInputToInstant } from '../../shared/time'
 import { ErrorMessage, Field, Pagination, QueryState, fieldErrors, formatDateTime } from '../../shared/ui'
-import { useInstitutionTimezone } from '../../shared/useInstitution'
+import { useWorkspaceTimezone } from '../../shared/useWorkspace'
 import type { CourseDetail, CourseSummary } from '../courses/types'
 import { ScheduleFields } from './ScheduleFields'
 import type { ClassDetail, ClassSummary } from './types'
@@ -14,7 +14,7 @@ const STATUS_LABELS = { DRAFT: 'Draft', ACTIVE: 'Active', ARCHIVED: 'Archived' }
 export function ClassListPage() {
   const [page, setPage] = useState(0)
   const [creating, setCreating] = useState(false)
-  const timeZone = useInstitutionTimezone()
+  const timeZone = useWorkspaceTimezone()
   const classes = useQuery({
     queryKey: ['classes', page],
     queryFn: () => api.get<Page<ClassSummary>>(`/classes${query({ page })}`),
@@ -74,7 +74,7 @@ export function ClassListPage() {
 /** Picking a course pre-fills a default self-paced class on its latest edition; the server validates as usual. */
 function NewClassForm({ onCancel }: { onCancel: () => void }) {
   const navigate = useNavigate()
-  const timeZone = useInstitutionTimezone()
+  const timeZone = useWorkspaceTimezone()
   const [courseId, setCourseId] = useState('')
   const [name, setName] = useState('')
   const courses = useQuery({ queryKey: ['courses', 'publishable'], queryFn: () => api.get<Page<CourseSummary>>('/courses?size=100') })

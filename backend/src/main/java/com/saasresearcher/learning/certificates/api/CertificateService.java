@@ -10,7 +10,7 @@ public interface CertificateService {
 
     void revoke(UUID certificateId, String reason, Actor actor);
 
-    /** Administrator-only; requires the completion to be achieved again and re-renders from the original snapshot. */
+    /** Approved course author only; requires the completion to be achieved again and re-renders from the original snapshot. */
     void reinstate(UUID certificateId, String reason, Actor actor);
 
     PublicCertificateStatus verify(String token);

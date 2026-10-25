@@ -1,4 +1,4 @@
-# Publishes PostgreSQL on localhost for development (backend run with the 'dev' profile).
+# Publishes PostgreSQL on localhost for development, including the Gradle Docker shortcuts.
 services:
   postgres:
     environment:

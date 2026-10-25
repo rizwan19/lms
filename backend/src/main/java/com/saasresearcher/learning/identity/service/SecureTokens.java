@@ -10,7 +10,6 @@ import java.util.HexFormat;
 public final class SecureTokens {
 
     private static final SecureRandom RANDOM = new SecureRandom();
-    private static final String PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
 
     private SecureTokens() {
     }
@@ -20,14 +19,6 @@ public final class SecureTokens {
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    static String newTemporaryPassword() {
-        StringBuilder password = new StringBuilder(16);
-        for (int i = 0; i < 16; i++) {
-            password.append(PASSWORD_ALPHABET.charAt(RANDOM.nextInt(PASSWORD_ALPHABET.length())));
-        }
-        return password.toString();
     }
 
     public static String sha256(String value) {

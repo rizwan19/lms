@@ -3,6 +3,8 @@ package com.saasresearcher.learning.media;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.saasresearcher.learning.media.api.AssetPurpose;
+import com.saasresearcher.learning.media.api.AssetStatus;
 import com.saasresearcher.learning.media.api.AssetStore;
 import com.saasresearcher.learning.media.service.MediaMaintenance;
 import com.saasresearcher.learning.support.ApiClient.ApiResponse;
@@ -41,13 +43,13 @@ class LocalMediaIT extends PostgresIntegrationTest {
     @Autowired
     private MediaMaintenance maintenance;
 
-    private ApiClient admin;
+    private TestUser owner;
     private TestUser teacher;
 
     @BeforeEach
     void users() {
-        admin = setupAdministrator();
-        teacher = createUser(admin, "media.teacher", "media@example.test", "TEACHER");
+        owner = setupOwner();
+        teacher = approvedTeacher("media.teacher", owner);
     }
 
     @Test
@@ -94,7 +96,7 @@ class LocalMediaIT extends PostgresIntegrationTest {
     void spoofedContentIsRejectedAndNotStored() throws IOException {
         ApiResponse spoofed = upload(teacher.session(), "DOCUMENT", "fake.pdf", png(10, 10), "application/pdf");
         assertThat(spoofed.status()).isEqualTo(422);
-        assertThat(jdbc.sql("select status from media_assets").query(String.class).single()).isEqualTo("REJECTED");
+        assertThat(AssetStatus.fromCode(jdbc.sql("select status from media_assets").query(Short.class).single())).isEqualTo(AssetStatus.REJECTED);
         String key = jdbc.sql("select storage_key from media_assets").query(String.class).single();
         assertThatThrownBy(() -> store.stat(key)).isInstanceOf(IOException.class);
 
@@ -107,10 +109,10 @@ class LocalMediaIT extends PostgresIntegrationTest {
     @Test
     void unsupportedTypesAndRolesAreRefused() throws IOException {
         assertThat(upload(teacher.session(), "DOCUMENT", "page.html", "<script>".getBytes(StandardCharsets.UTF_8), "text/html").status()).isEqualTo(415);
-        assertThat(upload(teacher.session(), "BRANDING_IMAGE", "logo.svg", "<svg/>".getBytes(StandardCharsets.UTF_8), "image/svg+xml").status()).isEqualTo(403);
-        assertThat(upload(admin, "BRANDING_IMAGE", "logo.svg", "<svg/>".getBytes(StandardCharsets.UTF_8), "image/svg+xml").status()).isEqualTo(415);
-        assertThat(upload(admin, "DOCUMENT", "slides.pdf.docx", PDF, "application/pdf").status()).isEqualTo(415);
-        TestUser student = createUser(admin, "media.student", null, "STUDENT");
+        assertThat(upload(registerTeacher("pending.teacher").session(), "BRANDING_IMAGE", "logo.png", png(4, 4), "image/png").status()).isEqualTo(403);
+        assertThat(upload(owner.session(), "BRANDING_IMAGE", "logo.svg", "<svg/>".getBytes(StandardCharsets.UTF_8), "image/svg+xml").status()).isEqualTo(415);
+        assertThat(upload(owner.session(), "DOCUMENT", "slides.pdf.docx", PDF, "application/pdf").status()).isEqualTo(415);
+        TestUser student = registerStudent("media.student");
         assertThat(upload(student.session(), "DOCUMENT", "notes.pdf", PDF, "application/pdf").status()).isEqualTo(403);
     }
 
@@ -118,16 +120,16 @@ class LocalMediaIT extends PostgresIntegrationTest {
     void brandingImagesAreReencodedAsPngAndUsableAsLogo() throws IOException {
         ByteArrayOutputStream jpeg = new ByteArrayOutputStream();
         ImageIO.write(new BufferedImage(40, 20, BufferedImage.TYPE_INT_RGB), "jpg", jpeg);
-        ApiResponse uploaded = upload(admin, "BRANDING_IMAGE", "logo.jpg", jpeg.toByteArray(), "image/jpeg").expect(201);
+        ApiResponse uploaded = upload(owner.session(), "BRANDING_IMAGE", "logo.jpg", jpeg.toByteArray(), "image/jpeg").expect(201);
         String id = uploaded.json().path("id").asString();
         assertThat(uploaded.json().path("contentType").asString()).isEqualTo("image/png");
         assertThat(uploaded.json().path("filename").asString()).isEqualTo("logo.png");
-        assertThat(Arrays.copyOf(admin.get("/media/" + id + "/content").bytes(), 4)).isEqualTo(new byte[] {(byte) 0x89, 'P', 'N', 'G'});
+        assertThat(Arrays.copyOf(owner.session().get("/media/" + id + "/content").bytes(), 4)).isEqualTo(new byte[] {(byte) 0x89, 'P', 'N', 'G'});
 
-        TestUser student = createUser(admin, "logo.viewer", null, "STUDENT");
+        TestUser student = registerStudent("logo.viewer");
         assertThat(student.session().get("/media/" + id + "/content").status()).isEqualTo(404);
-        long revision = admin.get("/institution").json().path("revision").asLong();
-        admin.put("/institution", Map.of("name", "Test School", "timezone", "Asia/Dhaka", "logoAssetId", id, "certificateVerification", false,
+        long revision = owner.session().get("/workspace").json().path("revision").asLong();
+        owner.session().put("/workspace", Map.of("name", "Test School", "timezone", "Asia/Dhaka", "logoAssetId", id, "certificateVerification", false,
                 "verificationShowsStudent", false, "expectedRevision", revision)).expect(200);
         assertThat(student.session().get("/media/" + id + "/content").status()).isEqualTo(200);
     }
@@ -141,14 +143,14 @@ class LocalMediaIT extends PostgresIntegrationTest {
         assertThat(key).isEqualTo("assets/" + id);
         assertThat(Files.exists(Path.of("build/test-media/assets").resolve(key))).isTrue();
 
-        TestUser otherTeacher = createUser(admin, "other.teacher", "other@example.test", "TEACHER");
-        TestUser student = createUser(admin, "curious.student", null, "STUDENT");
+        TestUser otherTeacher = approvedTeacher("other.teacher", owner);
+        TestUser student = registerStudent("curious.student");
         assertThat(otherTeacher.session().get("/media/" + id + "/content").status()).isEqualTo(404);
         assertThat(student.session().get("/media/" + id + "/content").status()).isEqualTo(404);
         assertThat(student.session().get("/media/" + UUID.randomUUID() + "/content").status()).isEqualTo(404);
         assertThat(client().get("/media/" + id + "/content").status()).isEqualTo(401);
         assertThat(student.session().get("/media/" + key + "/content").status()).isIn(400, 404);
-        assertThat(admin.get("/media/" + id + "/content").status()).isEqualTo(200);
+        assertThat(owner.session().get("/media/" + id + "/content").status()).as("no workspace bypass").isEqualTo(404);
         assertThatThrownBy(() -> store.stat("../../etc/passwd")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> store.stat("assets/../../secret")).isInstanceOf(IllegalArgumentException.class);
     }
@@ -162,15 +164,15 @@ class LocalMediaIT extends PostgresIntegrationTest {
         assertThat(documentOver.code()).isEqualTo("FILE_TOO_LARGE");
 
         byte[] image = png(8, 8);
-        assertThat(uploadStream(admin, "BRANDING_IMAGE", "exact.png", image, 5 * MIB, "image/png").status()).isEqualTo(201);
-        assertThat(uploadStream(admin, "BRANDING_IMAGE", "over.png", image, 5 * MIB + 1, "image/png").status()).isEqualTo(413);
+        assertThat(uploadStream(owner.session(), "BRANDING_IMAGE", "exact.png", image, 5 * MIB, "image/png").status()).isEqualTo(201);
+        assertThat(uploadStream(owner.session(), "BRANDING_IMAGE", "over.png", image, 5 * MIB + 1, "image/png").status()).isEqualTo(413);
 
         byte[] video = fixture("h264-aac.mp4");
         byte[] videoWithFreeBoxHeader = withFreeBox(video, 500 * MIB);
         assertThat(uploadStream(teacher.session(), "VIDEO", "exact.mp4", videoWithFreeBoxHeader, 500 * MIB, "video/mp4").status()).isEqualTo(201);
         assertThat(uploadStream(teacher.session(), "VIDEO", "over.mp4", video, 500 * MIB + 1, "video/mp4").status()).isEqualTo(413);
 
-        assertThat(jdbc.sql("select count(*) from media_assets where status = 'REJECTED'").query(Long.class).single()).isEqualTo(3);
+        assertThat(jdbc.sql("select count(*) from media_assets where status = :status").param("status", AssetStatus.REJECTED.code()).query(Long.class).single()).isEqualTo(3);
         try (var staged = Files.list(STAGING)) {
             assertThat(staged).isEmpty();
         }
@@ -182,9 +184,9 @@ class LocalMediaIT extends PostgresIntegrationTest {
         UUID abandoned = UUID.randomUUID();
         jdbc.sql("""
                 insert into media_assets (id, storage_key, filename, content_type, purpose, status, uploaded_by, created_at, updated_at)
-                values (:id, :key, 'big.mp4', 'video/mp4', 'VIDEO', 'UPLOADING', :teacher, :at, :at)
+                values (:id, :key, 'big.mp4', 'video/mp4', :purpose, :status, :teacher, :at, :at)
                 """)
-                .param("id", abandoned).param("key", "assets/" + abandoned).param("teacher", teacherId)
+                .param("id", abandoned).param("purpose", AssetPurpose.VIDEO.code()).param("status", AssetStatus.UPLOADING.code()).param("key", "assets/" + abandoned).param("teacher", teacherId)
                 .param("at", Timestamp.from(clock.instant()))
                 .update();
         Files.write(STAGING.resolve(abandoned.toString()), new byte[] {1, 2, 3});
@@ -192,7 +194,8 @@ class LocalMediaIT extends PostgresIntegrationTest {
 
         clock.advance(Duration.ofHours(25));
         maintenance.sweep();
-        assertThat(jdbc.sql("select status from media_assets where id = :id").param("id", abandoned).query(String.class).single()).isEqualTo("REJECTED");
+        assertThat(AssetStatus.fromCode(jdbc.sql("select status from media_assets where id = :id").param("id", abandoned).query(Short.class).single()))
+                .isEqualTo(AssetStatus.REJECTED);
         assertThat(Files.exists(STAGING.resolve(abandoned.toString()))).isFalse();
         assertThat(teacher.session().get("/media/" + orphan + "/content").status()).isEqualTo(200);
 

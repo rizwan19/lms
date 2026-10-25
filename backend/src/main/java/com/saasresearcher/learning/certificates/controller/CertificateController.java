@@ -2,9 +2,8 @@ package com.saasresearcher.learning.certificates.controller;
 
 import com.saasresearcher.learning.certificates.api.CertificateStatus;
 import com.saasresearcher.learning.certificates.api.PublicCertificateStatus;
-import com.saasresearcher.learning.certificates.entity.CertificateRow;
+import com.saasresearcher.learning.certificates.entity.Certificate;
 import com.saasresearcher.learning.certificates.service.CertificateIssueService;
-import com.saasresearcher.learning.classrooms.api.TeachingAccess;
 import com.saasresearcher.learning.common.Actor;
 import com.saasresearcher.learning.common.ApiException;
 import com.saasresearcher.learning.media.api.AssetStore;
@@ -24,7 +23,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
@@ -32,36 +30,34 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 public class CertificateController {
 
     private final CertificateIssueService certificates;
-    private final TeachingAccess teaching;
     private final AssetStore store;
 
-    CertificateController(CertificateIssueService certificates, TeachingAccess teaching, AssetStore store) {
+    CertificateController(CertificateIssueService certificates, AssetStore store) {
         this.certificates = certificates;
-        this.teaching = teaching;
         this.store = store;
     }
 
     @GetMapping("/me/certificates")
     List<CertificateView> mine(Actor actor) {
-        return certificates.ofStudent(actor.userId()).stream().map(CertificateView::of).toList();
+        return certificates.ofLearner(actor.userId()).stream().map(CertificateView::of).toList();
     }
 
-    @GetMapping("/certificates")
-    List<CertificateView> ofClass(@RequestParam UUID classId, Actor actor) {
-        teaching.requireClassTeacher(classId, actor);
-        return certificates.ofClass(classId).stream().map(CertificateView::of).toList();
+    /** The course author's list. */
+    @GetMapping("/courses/{id}/certificates")
+    List<CertificateView> ofCourse(@PathVariable UUID id, Actor actor) {
+        return certificates.ofCourse(id, actor).stream().map(CertificateView::of).toList();
     }
 
-    /** Owners can download after withdrawal; staff only for classes they teach. Never cached by shared proxies. */
+    /** The learner (also after withdrawal) or the course author only. Never cached by shared proxies. */
     @GetMapping("/certificates/{id}/download")
     ResponseEntity<StreamingResponseBody> download(@PathVariable UUID id, Actor actor) throws IOException {
-        CertificateRow certificate = certificates.requireReadable(id, actor);
-        if (certificate.status() != CertificateStatus.ISSUED) {
+        Certificate certificate = certificates.requireReadable(id, actor);
+        if (certificate.getStatus() != CertificateStatus.ISSUED) {
             throw ApiException.conflict("NOT_ISSUED", "This certificate is not available for download");
         }
-        long size = store.stat(certificate.storageKey()).sizeBytes();
+        long size = store.stat(certificate.getStorageKey()).sizeBytes();
         StreamingResponseBody body = output -> {
-            try (AssetStream stream = store.openRange(certificate.storageKey(), ByteRange.whole(size))) {
+            try (AssetStream stream = store.openRange(certificate.getStorageKey(), ByteRange.whole(size))) {
                 stream.content().transferTo(output);
             }
         };
@@ -101,12 +97,13 @@ public class CertificateController {
     }
 
     /** No verification token here: it exists only inside the PDF. */
-    record CertificateView(UUID id, String studentName, String courseTitle, int edition, LocalDate completedOn, CertificateStatus status,
-            Instant issuedAt, String renderError, String revokedReason) {
+    record CertificateView(UUID id, UUID courseId, String learnerName, String courseTitle, String authorName, int edition, LocalDate completedOn,
+            CertificateStatus status, Instant issuedAt, String renderError, String revokedReason) {
 
-        static CertificateView of(CertificateRow row) {
-            return new CertificateView(row.id(), row.snapshot().studentName(), row.snapshot().courseTitle(), row.snapshot().edition(),
-                    row.snapshot().completedOn(), row.status(), row.issuedAt(), row.renderError(), row.revokedReason());
+        static CertificateView of(Certificate certificate) {
+            return new CertificateView(certificate.getId(), certificate.getCourseId(), certificate.getLearnerName(), certificate.getCourseTitle(),
+                    certificate.getAuthorName(), certificate.getEdition(), certificate.getCompletedOn(), certificate.getStatus(), certificate.getIssuedAt(),
+                    certificate.getRenderError(), certificate.getRevokedReason());
         }
     }
 }

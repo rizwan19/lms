@@ -1,47 +1,45 @@
 package com.saasresearcher.learning.identity.service;
 
 import com.saasresearcher.learning.audit.api.AuditEntry;
-import com.saasresearcher.learning.audit.api.AuditLog;
+import com.saasresearcher.learning.audit.api.AuditService;
 import com.saasresearcher.learning.common.Actor;
 import com.saasresearcher.learning.common.ApiException;
-import com.saasresearcher.learning.identity.api.TemporaryCredential;
+import com.saasresearcher.learning.common.RowLocks;
+import com.saasresearcher.learning.identity.api.TokenPurpose;
 import com.saasresearcher.learning.identity.config.IdentityProperties;
-import com.saasresearcher.learning.identity.entity.OneTimeToken;
+import com.saasresearcher.learning.identity.entity.IdentityToken;
 import com.saasresearcher.learning.identity.entity.UserAccount;
-import com.saasresearcher.learning.identity.repository.InvitationRepository;
-import com.saasresearcher.learning.identity.repository.OneTimeTokenRepository;
-import com.saasresearcher.learning.identity.repository.PasswordResetTokenRepository;
+import com.saasresearcher.learning.identity.repository.IdentityTokenRepository;
 import com.saasresearcher.learning.identity.repository.UserAccountRepository;
 import com.saasresearcher.learning.notifications.api.EmailSender;
 import java.time.Clock;
+import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/** Password recovery through the verified email address, and password changes by the signed-in owner. */
 @Service
 public class AccountRecoveryService {
 
     private final UserAccountRepository accounts;
-    private final InvitationRepository invitations;
-    private final PasswordResetTokenRepository resetTokens;
-    private final AccountAuthorization authorization;
+    private final IdentityTokenRepository tokens;
     private final CredentialIssuer credentials;
     private final SessionRevocation sessions;
     private final AuthRateLimiter rateLimiter;
     private final EmailSender email;
-    private final AuditLog audit;
+    private final AuditService audit;
     private final IdentityProperties properties;
     private final Clock clock;
+    private final RowLocks locks;
 
-    AccountRecoveryService(UserAccountRepository accounts, InvitationRepository invitations, PasswordResetTokenRepository resetTokens,
-            AccountAuthorization authorization, CredentialIssuer credentials, SessionRevocation sessions,
-            AuthRateLimiter rateLimiter, EmailSender email, AuditLog audit, IdentityProperties properties, Clock clock) {
+    AccountRecoveryService(UserAccountRepository accounts, IdentityTokenRepository tokens, CredentialIssuer credentials,
+            SessionRevocation sessions, AuthRateLimiter rateLimiter, EmailSender email, AuditService audit, IdentityProperties properties,
+            RowLocks locks, Clock clock) {
         this.accounts = accounts;
-        this.invitations = invitations;
-        this.resetTokens = resetTokens;
-        this.authorization = authorization;
+        this.tokens = tokens;
         this.credentials = credentials;
         this.sessions = sessions;
         this.rateLimiter = rateLimiter;
@@ -49,20 +47,7 @@ public class AccountRecoveryService {
         this.audit = audit;
         this.properties = properties;
         this.clock = clock;
-    }
-
-    /** Staff-assisted reset: one-use temporary password, all sessions revoked, change required at next sign-in. */
-    @Transactional
-    public TemporaryCredential assistedReset(UUID userId, Actor actor) {
-        UserAccount account = accounts.findById(userId).orElseThrow(ApiException::notFound);
-        authorization.requireManageable(account, actor);
-        if (account.id().equals(actor.userId())) {
-            throw ApiException.invalid("userId", "Use change password for your own account");
-        }
-        TemporaryCredential credential = credentials.issueTemporaryPassword(account);
-        sessions.revokeAfterCommit(account.id());
-        audit.record(AuditEntry.success(actor.userId(), "account.assisted-reset", "user", account.id()));
-        return credential;
+        this.locks = locks;
     }
 
     /** Always succeeds from the caller's view so account existence is not revealed. */
@@ -79,27 +64,33 @@ public class AccountRecoveryService {
         rateLimiter.record(accountBucket);
         Optional<UserAccount> account = normalized.contains("@") ? accounts.findByEmail(normalized) : accounts.findByUsername(normalized);
         account.filter(UserAccount::isActive)
-                .filter(found -> found.email() != null)
-                .ifPresent(credentials::issuePasswordReset);
+                .filter(UserAccount::isEmailVerified)
+                .ifPresent(found -> credentials.issue(found, TokenPurpose.RESET_PASSWORD));
     }
 
     @Transactional
-    public void confirmPasswordReset(String token, String newPassword) {
-        UserAccount account = redeem(resetTokens, token, newPassword);
-        sessions.revokeAfterCommit(account.id());
-        audit.record(AuditEntry.success(account.id(), "password.reset", "user", account.id()));
-    }
-
-    @Transactional
-    public void acceptInvitation(String token, String password) {
-        UserAccount account = redeem(invitations, token, password);
-        audit.record(AuditEntry.success(account.id(), "invitation.accepted", "user", account.id()));
+    public void confirmPasswordReset(String rawToken, String newPassword) {
+        AccountRules.password("password", newPassword);
+        IdentityToken found = tokens.findByTokenHash(SecureTokens.sha256(rawToken == null ? "" : rawToken))
+                .filter(token -> token.getPurpose() == TokenPurpose.RESET_PASSWORD)
+                .orElseThrow(AccountRecoveryService::invalid);
+        UserAccount account = accounts.lockById(found.getUserId()).filter(UserAccount::isActive).orElseThrow(AccountRecoveryService::invalid);
+        IdentityToken token = locks.forUpdate(found);
+        Instant now = clock.instant();
+        if (!token.isUsable(now)) {
+            throw invalid();
+        }
+        token.consume(now);
+        credentials.revokeOpen(account, List.of(TokenPurpose.RESET_PASSWORD));
+        credentials.setPassword(account, newPassword);
+        sessions.revokeAfterCommit(account.getId());
+        audit.record(AuditEntry.success(account.getId(), "password.reset", "user", account.getId()));
     }
 
     @Transactional
     public void changePassword(Actor actor, String currentPassword, String newPassword, String currentSessionId) {
-        UserAccount account = accounts.findById(actor.userId()).orElseThrow(ApiException::notFound);
-        if (!credentials.passwordMatches(account, currentPassword)) {
+        UserAccount account = accounts.lockById(actor.userId()).orElseThrow(ApiException::notFound);
+        if (currentPassword == null || !credentials.passwordMatches(account, currentPassword)) {
             throw ApiException.invalid("currentPassword", "Current password is incorrect");
         }
         AccountRules.password("newPassword", newPassword);
@@ -107,20 +98,11 @@ public class AccountRecoveryService {
             throw ApiException.invalid("newPassword", "Choose a different password");
         }
         credentials.setPassword(account, newPassword);
-        sessions.revokeAfterCommit(account.id(), currentSessionId);
-        audit.record(AuditEntry.success(account.id(), "password.changed", "user", account.id()));
+        sessions.revokeAfterCommit(account.getId(), currentSessionId);
+        audit.record(AuditEntry.success(account.getId(), "password.changed", "user", account.getId()));
     }
 
-    private <T extends OneTimeToken> UserAccount redeem(OneTimeTokenRepository<T> repository, String token, String password) {
-        AccountRules.password("password", password);
-        T stored = repository.findByTokenHash(SecureTokens.sha256(token == null ? "" : token))
-                .filter(candidate -> candidate.isUsable(clock.instant()))
-                .orElseThrow(() -> ApiException.badRequest(IdentityErrors.INVALID_TOKEN, "This link is invalid or has expired"));
-        UserAccount account = accounts.findById(stored.userId())
-                .filter(UserAccount::isActive)
-                .orElseThrow(() -> ApiException.badRequest(IdentityErrors.INVALID_TOKEN, "This link is invalid or has expired"));
-        stored.markUsed(clock.instant());
-        credentials.setPassword(account, password);
-        return account;
+    private static ApiException invalid() {
+        return ApiException.badRequest(IdentityErrors.INVALID_TOKEN, "This link is invalid or has expired");
     }
 }

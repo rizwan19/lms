@@ -1,76 +1,65 @@
 package com.saasresearcher.learning.identity.service;
 
-import com.saasresearcher.learning.identity.api.TemporaryCredential;
+import com.saasresearcher.learning.identity.api.TokenPurpose;
 import com.saasresearcher.learning.identity.config.IdentityProperties;
-import com.saasresearcher.learning.identity.entity.Invitation;
-import com.saasresearcher.learning.identity.entity.PasswordResetToken;
+import com.saasresearcher.learning.identity.entity.IdentityToken;
 import com.saasresearcher.learning.identity.entity.UserAccount;
-import com.saasresearcher.learning.identity.infra.InvitationEmailHandler;
-import com.saasresearcher.learning.identity.infra.PasswordResetEmailHandler;
-import com.saasresearcher.learning.identity.repository.InvitationRepository;
-import com.saasresearcher.learning.identity.repository.PasswordResetTokenRepository;
+import com.saasresearcher.learning.identity.infra.IdentityTokenEmailHandler;
+import com.saasresearcher.learning.identity.repository.IdentityTokenRepository;
 import com.saasresearcher.learning.notifications.api.DurableJobs;
 import com.saasresearcher.learning.notifications.api.JobRequest;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.Collection;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
-/** Issues passwords and one-time tokens; callers own the transaction. */
+/** Hashes passwords and issues one-time tokens; callers own the transaction. */
 @Component
 public class CredentialIssuer {
 
     private final PasswordEncoder passwordEncoder;
-    private final InvitationRepository invitations;
-    private final PasswordResetTokenRepository resetTokens;
+    private final IdentityTokenRepository tokens;
     private final DurableJobs jobs;
     private final IdentityProperties properties;
     private final Clock clock;
 
-    CredentialIssuer(PasswordEncoder passwordEncoder, InvitationRepository invitations, PasswordResetTokenRepository resetTokens,
-            DurableJobs jobs, IdentityProperties properties, Clock clock) {
+    CredentialIssuer(PasswordEncoder passwordEncoder, IdentityTokenRepository tokens, DurableJobs jobs, IdentityProperties properties,
+            Clock clock) {
         this.passwordEncoder = passwordEncoder;
-        this.invitations = invitations;
-        this.resetTokens = resetTokens;
+        this.tokens = tokens;
         this.jobs = jobs;
         this.properties = properties;
         this.clock = clock;
     }
 
-    TemporaryCredential issueTemporaryPassword(UserAccount account) {
-        Instant now = clock.instant();
-        String password = SecureTokens.newTemporaryPassword();
-        Instant expiresAt = now.plus(properties.temporaryPasswordTtl());
-        account.setTemporaryPassword(passwordEncoder.encode(password), expiresAt, now);
-        return new TemporaryCredential(account.username(), password, expiresAt);
+    public String hash(String password) {
+        return passwordEncoder.encode(password);
     }
 
-    public void setPassword(UserAccount account, String password) {
-        account.setPassword(passwordEncoder.encode(password), clock.instant());
+    void setPassword(UserAccount account, String password) {
+        account.setPassword(hash(password), clock.instant());
     }
 
     boolean passwordMatches(UserAccount account, String password) {
-        return account.passwordHash() != null && passwordEncoder.matches(password, account.passwordHash());
+        return passwordEncoder.matches(password, account.getPasswordHash());
     }
 
     /**
-     * Creates an invitation and queues its email. The stored hash belongs to a token nobody sees; the email
-     * job rotates it and sends the fresh token, so no usable token is ever persisted in plain text.
+     * Revokes the user's open tokens of the purpose, creates a new one and queues its email. The stored hash belongs to a
+     * token nobody sees; the email job rotates it and sends the fresh token, so no usable token is ever persisted.
      */
-    Instant issueInvitation(UserAccount account) {
+    void issue(UserAccount account, TokenPurpose purpose) {
         Instant now = clock.instant();
-        Invitation invitation = invitations.save(new Invitation(account.id(), unusedTokenHash(), now.plus(properties.invitationTtl()), now));
-        jobs.enqueue(JobRequest.now(InvitationEmailHandler.TYPE, invitation.id(), "invitation-email:" + invitation.id(), now));
-        return invitation.expiresAt();
+        revokeOpen(account, java.util.List.of(purpose));
+        Duration ttl = purpose == TokenPurpose.RESET_PASSWORD ? properties.passwordResetTtl() : properties.emailVerificationTtl();
+        IdentityToken token = tokens.save(new IdentityToken(account.getId(), purpose, SecureTokens.sha256(SecureTokens.newToken()), now.plus(ttl), now));
+        jobs.enqueue(JobRequest.now(IdentityTokenEmailHandler.TYPE, token.getId(), "identity-token-email:" + token.getId(), now));
     }
 
-    void issuePasswordReset(UserAccount account) {
+    void revokeOpen(UserAccount account, Collection<TokenPurpose> purposes) {
         Instant now = clock.instant();
-        PasswordResetToken reset = resetTokens.save(new PasswordResetToken(account.id(), unusedTokenHash(), now.plus(properties.passwordResetTtl()), now));
-        jobs.enqueue(JobRequest.now(PasswordResetEmailHandler.TYPE, reset.id(), "password-reset-email:" + reset.id(), now));
-    }
-
-    private static String unusedTokenHash() {
-        return SecureTokens.sha256(SecureTokens.newToken());
+        tokens.lockOpen(account.getId(), purposes).forEach(open -> open.revoke(now));
     }
 }

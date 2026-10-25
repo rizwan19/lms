@@ -1,10 +1,10 @@
 package com.saasresearcher.learning.identity.config;
 
 import com.saasresearcher.learning.common.Actor;
+import com.saasresearcher.learning.common.ErrorCodes;
 import com.saasresearcher.learning.common.WebConfiguration;
 import com.saasresearcher.learning.identity.entity.UserAccount;
 import com.saasresearcher.learning.identity.repository.UserAccountRepository;
-import com.saasresearcher.learning.identity.service.IdentityErrors;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -21,19 +21,22 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Re-reads the signed-in account on every request so disabling, role changes and password resets
- * take effect immediately, and enforces the password-change gate after an assisted reset.
+ * Re-reads the signed-in account on every request, so suspension, verification and teacher review take effect at once
+ * and no role or approval cached in the session is ever trusted. Unverified accounts are limited to verification.
  */
 public class ActiveAccountFilter extends OncePerRequestFilter {
 
     static final String ACTOR_ATTRIBUTE = ActiveAccountFilter.class.getName() + ".actor";
 
-    private static final Set<String> PASSWORD_CHANGE_ALLOWED = Set.of(
+    private static final Set<String> UNVERIFIED_ALLOWED = Set.of(
             "GET " + WebConfiguration.API_BASE + "/auth/me",
             "GET " + WebConfiguration.API_BASE + "/auth/csrf",
             "PUT " + WebConfiguration.API_BASE + "/auth/me/password",
             "POST " + WebConfiguration.API_BASE + "/auth/logout",
-            "GET " + WebConfiguration.API_BASE + "/institution");
+            "POST " + WebConfiguration.API_BASE + "/auth/email/verify",
+            "POST " + WebConfiguration.API_BASE + "/auth/email/resend",
+            "GET " + WebConfiguration.API_BASE + "/workspace",
+            "GET " + WebConfiguration.API_BASE + "/setup");
 
     private final UserAccountRepository accounts;
     private final ProblemWriter problems;
@@ -61,9 +64,11 @@ public class ActiveAccountFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
             return;
         }
-        if (account.get().passwordChangeRequired()
-                && !PASSWORD_CHANGE_ALLOWED.contains(request.getMethod() + " " + request.getRequestURI())) {
-            problems.write(response, HttpStatus.FORBIDDEN, IdentityErrors.PASSWORD_CHANGE_REQUIRED, "Change your password to continue");
+        String route = request.getMethod() + " " + request.getRequestURI();
+        if (!account.get().isEmailVerified() && !UNVERIFIED_ALLOWED.contains(route)
+                && !request.getRequestURI().startsWith(WebConfiguration.API_BASE + "/catalog")
+                && !request.getRequestURI().startsWith(WebConfiguration.API_BASE + "/public")) {
+            problems.write(response, HttpStatus.FORBIDDEN, ErrorCodes.EMAIL_UNVERIFIED, "Verify your email address first");
             return;
         }
         Actor actor = account.get().toActor();

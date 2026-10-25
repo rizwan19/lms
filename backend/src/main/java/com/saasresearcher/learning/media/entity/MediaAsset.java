@@ -2,20 +2,19 @@ package com.saasresearcher.learning.media.entity;
 
 import com.saasresearcher.learning.media.api.AssetMetadata;
 import com.saasresearcher.learning.media.api.AssetPurpose;
+import com.saasresearcher.learning.media.api.AssetStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
+import lombok.Getter;
 
+@Getter
 @Entity
 @Table(name = "media_assets")
 public class MediaAsset {
-
-    public enum Status { UPLOADING, VALIDATING, AVAILABLE, REJECTED }
 
     @Id
     private UUID id;
@@ -34,13 +33,11 @@ public class MediaAsset {
 
     private String sha256;
 
-    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private AssetPurpose purpose;
 
-    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private Status status;
+    private AssetStatus status;
 
     @Column(name = "rejection_reason")
     private String rejectionReason;
@@ -67,13 +64,13 @@ public class MediaAsset {
         this.filename = filename;
         this.contentType = contentType;
         this.uploadedBy = uploadedBy;
-        this.status = Status.UPLOADING;
+        this.status = AssetStatus.UPLOADING;
         this.createdAt = now;
         this.updatedAt = now;
     }
 
     public void validating(Instant now) {
-        this.status = Status.VALIDATING;
+        this.status = AssetStatus.VALIDATING;
         this.updatedAt = now;
     }
 
@@ -83,45 +80,33 @@ public class MediaAsset {
         this.sizeBytes = sizeBytes;
         this.sha256 = sha256;
         this.durationSeconds = durationSeconds;
-        this.status = Status.AVAILABLE;
+        this.status = AssetStatus.AVAILABLE;
         this.updatedAt = now;
     }
 
     public void reject(String reason, Instant now) {
-        this.status = Status.REJECTED;
+        this.status = AssetStatus.REJECTED;
         this.rejectionReason = reason.length() > 500 ? reason.substring(0, 500) : reason;
         this.updatedAt = now;
     }
 
     public boolean isAvailable() {
-        return status == Status.AVAILABLE;
+        return status == AssetStatus.AVAILABLE;
     }
 
     public AssetMetadata toMetadata() {
         return new AssetMetadata(id, purpose, filename, contentType, sizeBytes == null ? 0 : sizeBytes, durationSeconds);
     }
 
-    public UUID id() {
-        return id;
-    }
-
-    public String storageKey() {
-        return storageKey;
-    }
-
     AssetPurpose purpose() {
         return purpose;
     }
 
-    Status status() {
+    AssetStatus status() {
         return status;
     }
 
     String rejectionReason() {
         return rejectionReason;
-    }
-
-    public UUID uploadedBy() {
-        return uploadedBy;
     }
 }

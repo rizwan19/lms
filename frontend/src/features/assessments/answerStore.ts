@@ -1,18 +1,18 @@
 import type { SavedAnswer } from './types'
 
 export type AnswerValue = { selectedOptionIds: string[]; writtenText: string | null }
-export type SaveState = 'saved' | 'unsaved' | 'saving' | 'error' | 'conflict'
+export type SaveState = 'saved' | 'unsaved' | 'saving' | 'error'
 
-type Entry = { value: AnswerValue; revision: number; state: SaveState; sending: boolean; resend: boolean; timer?: ReturnType<typeof setTimeout> }
+type Entry = { value: AnswerValue; state: SaveState; sending: boolean; resend: boolean; timer?: ReturnType<typeof setTimeout> }
 
-export type SaveRequest = (questionId: string, body: { expectedRevision: number } & AnswerValue) => Promise<{ revision: number }>
-export type SaveFailure = { code?: string; current?: SavedAnswer | null }
+export type SaveRequest = (questionId: string, body: AnswerValue) => Promise<unknown>
+export type SaveFailure = { code?: string }
 
 const EMPTY: AnswerValue = { selectedOptionIds: [], writtenText: null }
 
 /**
- * In-memory answers of one attempt (never browser storage). Saves per question are serialized and always carry the
- * last acknowledged revision; a revision conflict adopts the server's newer answer instead of overwriting it.
+ * In-memory answers of one attempt (never browser storage). Saves per question are serialized, so the last
+ * change is the last write.
  */
 export class AnswerStore {
   private readonly entries = new Map<string, Entry>()
@@ -29,7 +29,6 @@ export class AnswerStore {
     saved.forEach((answer) =>
       this.entries.set(answer.questionId, {
         value: { selectedOptionIds: answer.selectedOptionIds, writtenText: answer.writtenText },
-        revision: answer.revision,
         state: 'saved',
         sending: false,
         resend: false,
@@ -88,7 +87,7 @@ export class AnswerStore {
   private entry(questionId: string): Entry {
     let entry = this.entries.get(questionId)
     if (!entry) {
-      entry = { value: EMPTY, revision: 0, state: 'saved', sending: false, resend: false }
+      entry = { value: EMPTY, state: 'saved', sending: false, resend: false }
       this.entries.set(questionId, entry)
     }
     return entry
@@ -105,18 +104,12 @@ export class AnswerStore {
     const value = entry.value
     this.emit()
     try {
-      const result = await this.request(questionId, { expectedRevision: entry.revision, ...value })
-      entry.revision = result.revision
+      await this.request(questionId, value)
       entry.resend = entry.resend || entry.value !== value
       entry.state = entry.resend ? 'unsaved' : 'saved'
     } catch (error) {
       const failure = this.classify(error)
-      if (failure.code === 'ANSWER_REVISION_CONFLICT') {
-        entry.revision = failure.current?.revision ?? 0
-        entry.value = { selectedOptionIds: failure.current?.selectedOptionIds ?? [], writtenText: failure.current?.writtenText ?? null }
-        entry.state = 'conflict'
-        entry.resend = false
-      } else if (failure.code === 'ATTEMPT_EXPIRED' || failure.code === 'ATTEMPT_CLOSED') {
+      if (failure.code === 'ATTEMPT_EXPIRED' || failure.code === 'ATTEMPT_CLOSED') {
         entry.state = 'error'
         entry.resend = false
         this.onClosed(failure.code)

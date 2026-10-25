@@ -1,28 +1,26 @@
 package com.saasresearcher.learning.identity.service;
 
 import com.saasresearcher.learning.audit.api.AuditEntry;
-import com.saasresearcher.learning.audit.api.AuditLog;
+import com.saasresearcher.learning.audit.api.AuditService;
 import com.saasresearcher.learning.common.Actor;
 import com.saasresearcher.learning.common.ApiException;
 import com.saasresearcher.learning.common.ErrorCodes;
 import com.saasresearcher.learning.common.PageQuery;
 import com.saasresearcher.learning.common.Revisions;
 import com.saasresearcher.learning.common.Role;
-import com.saasresearcher.learning.identity.api.AccountProvisioning;
+import com.saasresearcher.learning.common.RowLocks;
 import com.saasresearcher.learning.identity.api.AccountStatus;
 import com.saasresearcher.learning.identity.api.AccountSummary;
 import com.saasresearcher.learning.identity.api.IdentityAccess;
-import com.saasresearcher.learning.identity.api.ProvisionedStudent;
-import com.saasresearcher.learning.identity.api.TemporaryCredential;
-import com.saasresearcher.learning.identity.dto.CredentialDelivery;
+import com.saasresearcher.learning.identity.api.TokenPurpose;
 import com.saasresearcher.learning.identity.entity.UserAccount;
 import com.saasresearcher.learning.identity.repository.UserAccountRepository;
-import com.saasresearcher.learning.notifications.api.EmailSender;
+import com.saasresearcher.learning.workspace.api.WorkspaceService;
 import jakarta.persistence.criteria.Predicate;
 import java.time.Clock;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -30,6 +28,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
@@ -38,216 +38,118 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class AccountService implements IdentityAccess, AccountProvisioning {
+@RequiredArgsConstructor
+public class AccountService implements IdentityAccess {
 
-    private final UserAccountRepository accounts;
-    private final AccountAuthorization authorization;
-    private final CredentialIssuer credentials;
-    private final SessionRevocation sessions;
-    private final EmailSender email;
-    private final AuditLog audit;
+    private final UserAccountRepository userAccountRepository;
+    private final WorkspaceService workspaceService;
+    private final CredentialIssuer credentialIssuer;
+    private final SessionRevocation sessionRevocation;
+    private final AuditService auditService;
     private final Clock clock;
-
-    AccountService(UserAccountRepository accounts, AccountAuthorization authorization, CredentialIssuer credentials,
-            SessionRevocation sessions, EmailSender email, AuditLog audit, Clock clock) {
-        this.accounts = accounts;
-        this.authorization = authorization;
-        this.credentials = credentials;
-        this.sessions = sessions;
-        this.email = email;
-        this.audit = audit;
-        this.clock = clock;
-    }
+    private final RowLocks locks;
 
     @Override
     @Transactional(readOnly = true)
     public Actor requireActive(UUID userId) {
-        return accounts.findById(userId)
+        return userAccountRepository.findById(userId)
                 .filter(UserAccount::isActive)
                 .map(UserAccount::toActor)
                 .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, ErrorCodes.UNAUTHENTICATED, "Sign in required"));
     }
 
     @Override
-    @Transactional(readOnly = true)
-    public Map<UUID, AccountSummary> summaries(Collection<UUID> userIds) {
-        return accounts.findByIdIn(userIds).stream()
-                .collect(Collectors.toMap(UserAccount::id, UserAccount::toSummary));
+    @Transactional
+    public Map<UUID, AccountSummary> lockShared(Collection<UUID> userIds) {
+        Map<UUID, AccountSummary> locked = new LinkedHashMap<>();
+        userAccountRepository.lockSharedInOrder(Set.copyOf(userIds)).forEach(account -> locked.put(account.getId(), locks.forShare(account).toSummary()));
+        return locked;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public Optional<AccountSummary> findByUsername(String username) {
-        return accounts.findByUsername(username.trim().toLowerCase(Locale.ROOT)).map(UserAccount::toSummary);
+    public Map<UUID, AccountSummary> summaries(Collection<UUID> userIds) {
+        return userAccountRepository.findByIdIn(userIds).stream().collect(Collectors.toMap(UserAccount::getId, UserAccount::toSummary));
     }
 
     @Override
     @Transactional(readOnly = true)
     public Optional<AccountSummary> findByEmail(String email) {
-        return accounts.findByEmail(email.trim().toLowerCase(Locale.ROOT)).map(UserAccount::toSummary);
-    }
-
-    @Override
-    @Transactional
-    public ProvisionedStudent createStudent(String username, String displayName, String email, Actor creator) {
-        boolean invite = email != null && !email.isBlank() && this.email.isConfigured();
-        CreatedAccount created = create(new NewAccount(username, displayName, email, Set.of(Role.STUDENT),
-                invite ? CredentialDelivery.INVITATION : CredentialDelivery.TEMPORARY_PASSWORD), creator);
-        return new ProvisionedStudent(created.account().id(), created.temporaryCredential(), created.invitationExpiresAt());
-    }
-
-    @Override
-    public List<String> studentProblems(String username, String displayName, String email) {
-        List<String> problems = new ArrayList<>();
-        for (Runnable rule : List.<Runnable>of(() -> AccountRules.username(username), () -> AccountRules.displayName(displayName),
-                () -> AccountRules.email(email))) {
-            try {
-                rule.run();
-            } catch (ApiException invalid) {
-                problems.addAll(invalid.fieldErrors().values());
-            }
-        }
-        return problems;
+        return userAccountRepository.findByEmail(email.trim().toLowerCase(Locale.ROOT)).map(UserAccount::toSummary);
     }
 
     @Transactional(readOnly = true)
     public UserAccount findAccount(UUID id) {
-        return accounts.findById(id).orElseThrow(ApiException::notFound);
-    }
-
-    @Transactional
-    public CreatedAccount create(NewAccount command, Actor actor) {
-        authorization.requireStaff(actor);
-        Set<Role> roles = requireGrantableRoles(command.roles(), actor);
-        String username = AccountRules.username(command.username());
-        String email = AccountRules.email(command.email());
-        String displayName = AccountRules.displayName(command.displayName());
-        requireStaffEmail(roles, email);
-        requireUniqueIdentity(username, email, null);
-
-        UserAccount account = new UserAccount(username, email, displayName, roles, actor.userId(), clock.instant());
-        TemporaryCredential credential = null;
-        Instant invitationExpiresAt = null;
-        if (command.delivery() == CredentialDelivery.INVITATION) {
-            if (email == null) {
-                throw ApiException.invalid("email", "An invitation needs an email address");
-            }
-            if (!this.email.isConfigured()) {
-                throw ApiException.conflict(IdentityErrors.EMAIL_NOT_CONFIGURED, "Email is not configured; use a temporary password instead");
-            }
-            accounts.save(account);
-            invitationExpiresAt = credentials.issueInvitation(account);
-        } else {
-            credential = credentials.issueTemporaryPassword(account);
-            accounts.save(account);
-        }
-        audit.record(AuditEntry.success(actor.userId(), "account.created", "user", account.id(),
-                Map.of("roles", roles, "delivery", command.delivery())));
-        return new CreatedAccount(account, credential, invitationExpiresAt);
-    }
-
-    @Transactional
-    public UserAccount update(UUID id, AccountChanges changes, Actor actor) {
-        authorization.requireAdministrator(actor);
-        UserAccount account = accounts.findById(id).orElseThrow(ApiException::notFound);
-        Revisions.require(changes.expectedRevision(), account.version());
-        Set<Role> roles = requireGrantableRoles(changes.roles(), actor);
-        String email = AccountRules.email(changes.email());
-        requireStaffEmail(roles, email);
-        requireUniqueIdentity(account.username(), email, account);
-        if (!roles.contains(Role.ADMINISTRATOR) && account.isActive() && account.roles().contains(Role.ADMINISTRATOR)) {
-            requireAnotherActiveAdministrator(account);
-        }
-        account.updateProfile(AccountRules.displayName(changes.displayName()), email, roles, clock.instant());
-        accounts.flush();
-        audit.record(AuditEntry.success(actor.userId(), "account.updated", "user", account.id(), Map.of("roles", roles)));
-        return account;
-    }
-
-    @Transactional
-    public UserAccount setStatus(UUID id, AccountStatus status, Actor actor) {
-        authorization.requireAdministrator(actor);
-        UserAccount account = accounts.findById(id).orElseThrow(ApiException::notFound);
-        if (status == AccountStatus.DISABLED && account.isActive()) {
-            if (account.roles().contains(Role.ADMINISTRATOR)) {
-                requireAnotherActiveAdministrator(account);
-            }
-            sessions.revokeAfterCommit(account.id());
-        }
-        account.setStatus(status, clock.instant());
-        accounts.flush();
-        audit.record(AuditEntry.success(actor.userId(), "account.status-changed", "user", account.id(), Map.of("status", status)));
-        return account;
+        return userAccountRepository.findById(id).orElseThrow(ApiException::notFound);
     }
 
     @Transactional(readOnly = true)
-    public UserAccount get(UUID id, Actor actor) {
-        UserAccount account = findAccount(id);
-        authorization.requireManageable(account, actor);
-        return account;
-    }
-
-    @Transactional(readOnly = true)
-    public Page<UserAccount> list(String search, Role role, PageQuery query, Actor actor) {
-        authorization.requireStaff(actor);
+    public Page<UserAccount> list(String search, Role role, AccountStatus status, PageQuery query, Actor actor) {
+        actor.requireApprovedTeacher();
         Specification<UserAccount> spec = (root, criteria, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             if (search != null && !search.isBlank()) {
                 String pattern = "%" + search.trim().toLowerCase(Locale.ROOT) + "%";
-                predicates.add(cb.or(cb.like(root.get("username"), pattern), cb.like(cb.lower(root.get("displayName")), pattern)));
+                predicates.add(cb.or(cb.like(root.get("username"), pattern), cb.like(cb.lower(root.get("displayName")), pattern),
+                        cb.like(root.get("email"), pattern)));
             }
             if (role != null) {
-                predicates.add(cb.isMember(role, root.get("roles")));
+                predicates.add(cb.equal(root.get("role"), role));
             }
-            if (!actor.isAdministrator()) {
-                Set<UUID> managed = authorization.managedStudentIds(actor);
-                Predicate created = cb.equal(root.get("createdBy"), actor.userId());
-                predicates.add(managed.isEmpty() ? created : cb.or(created, root.get("id").in(managed)));
-                predicates.add(cb.isMember(Role.STUDENT, root.get("roles")));
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
             }
             return cb.and(predicates.toArray(Predicate[]::new));
         };
-        return accounts.findAll(spec, query.pageable(Sort.by("username")));
+        return userAccountRepository.findAll(spec, query.pageable(Sort.by("username")));
     }
 
-    private static Set<Role> requireGrantableRoles(Set<Role> roles, Actor actor) {
-        if (roles == null || roles.isEmpty()) {
-            throw ApiException.invalid("roles", "Choose at least one role");
+    @Transactional(readOnly = true)
+    public UserAccount get(UUID id, Actor actor) {
+        actor.requireApprovedTeacher();
+        return findAccount(id);
+    }
+
+    /**
+     * Suspends or reactivates an account. Locks the workspace, then both accounts in UUID order, and rechecks the
+     * actor, so two teachers suspending each other cannot leave the workspace without an approved teacher. Nobody may
+     * suspend themselves, which keeps the last approved teacher in place.
+     */
+    @Transactional
+    public UserAccount setStatus(UUID id, AccountStatus status, long expectedRevision, Actor actor) {
+        actor.requireApprovedTeacher();
+        if (id.equals(actor.userId())) {
+            throw ApiException.conflict(IdentityErrors.SELF_SUSPENSION, "You cannot change the status of your own account");
         }
-        if (!actor.isAdministrator() && !roles.equals(Set.of(Role.STUDENT))) {
-            throw ApiException.accessDenied("Teachers can only create student accounts");
+        workspaceService.lockWorkspace();
+        Map<UUID, UserAccount> locked = userAccountRepository.lockInOrder(Set.of(id, actor.userId())).stream().map(locks::forUpdate)
+                .collect(Collectors.toMap(UserAccount::getId, account -> account));
+        UserAccount reviewer = locked.get(actor.userId());
+        if (reviewer == null || !reviewer.isActiveApprovedTeacher()) {
+            throw ApiException.teacherApprovalRequired();
         }
-        return Set.copyOf(roles);
-    }
-
-    private static void requireStaffEmail(Set<Role> roles, String email) {
-        if (email == null && (roles.contains(Role.ADMINISTRATOR) || roles.contains(Role.TEACHER))) {
-            throw ApiException.invalid("email", "Teachers and administrators need an email address");
+        UserAccount account = Optional.ofNullable(locked.get(id)).orElseThrow(ApiException::notFound);
+        Revisions.require(expectedRevision, account.getVersion());
+        if (account.getStatus() != status) {
+            account.setStatus(status, clock.instant());
+            if (status == AccountStatus.SUSPENDED) {
+                sessionRevocation.revokeAfterCommit(account.getId());
+            }
+            userAccountRepository.flush();
+            auditService.record(AuditEntry.success(actor.userId(), "account.status-changed", "user", account.getId(), Map.of("status", status)));
         }
+        return account;
     }
 
-    private void requireUniqueIdentity(String username, String email, UserAccount existing) {
-        if (existing == null && accounts.existsByUsername(username)) {
-            throw ApiException.conflict(IdentityErrors.USERNAME_TAKEN, "That username is already in use");
+    /** Sends a recovery link to the account's verified email; nobody but the owner ever chooses the new password. */
+    @Transactional
+    public void sendPasswordReset(UUID id, Actor actor) {
+        actor.requireApprovedTeacher();
+        UserAccount account = findAccount(id);
+        if (!account.isActive() || !account.isEmailVerified()) {
+            throw ApiException.conflict(IdentityErrors.INVALID_TOKEN, "Only active accounts with a verified email can be recovered");
         }
-        if (email != null && accounts.findByEmail(email).filter(other -> other != existing).isPresent()) {
-            throw ApiException.conflict(IdentityErrors.EMAIL_TAKEN, "That email address is already in use");
-        }
-    }
-
-    private void requireAnotherActiveAdministrator(UserAccount account) {
-        boolean anotherRemains = accounts.lockActiveAdministrators().stream().anyMatch(admin -> !admin.id().equals(account.id()));
-        if (!anotherRemains) {
-            throw ApiException.conflict(IdentityErrors.LAST_ADMINISTRATOR, "The last active administrator cannot be disabled or demoted");
-        }
-    }
-
-    public record NewAccount(String username, String displayName, String email, Set<Role> roles, CredentialDelivery delivery) {
-    }
-
-    public record AccountChanges(String displayName, String email, Set<Role> roles, long expectedRevision) {
-    }
-
-    public record CreatedAccount(UserAccount account, TemporaryCredential temporaryCredential, Instant invitationExpiresAt) {
+        credentialIssuer.issue(account, TokenPurpose.RESET_PASSWORD);
+        auditService.record(AuditEntry.success(actor.userId(), "account.recovery-sent", "user", account.getId()));
     }
 }

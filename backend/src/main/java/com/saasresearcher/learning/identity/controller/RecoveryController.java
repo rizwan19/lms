@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Token-bound, unauthenticated account recovery and invitation acceptance. */
+/** Token-bound, unauthenticated password recovery through the verified email address. */
 @RestController
 @RequestMapping("/auth")
 public class RecoveryController {
@@ -34,12 +34,6 @@ public class RecoveryController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     void confirmReset(@Valid @RequestBody TokenPassword command) {
         recovery.confirmPasswordReset(command.token(), command.password());
-    }
-
-    @PostMapping("/invitations/accept")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    void acceptInvitation(@Valid @RequestBody TokenPassword command) {
-        recovery.acceptInvitation(command.token(), command.password());
     }
 
     record ResetRequest(@NotBlank @Size(max = 254) String usernameOrEmail) {

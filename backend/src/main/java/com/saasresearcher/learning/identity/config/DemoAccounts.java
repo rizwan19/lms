@@ -1,13 +1,14 @@
 package com.saasresearcher.learning.identity.config;
 
 import com.saasresearcher.learning.common.Role;
+import com.saasresearcher.learning.common.TeacherStatus;
 import com.saasresearcher.learning.identity.entity.UserAccount;
 import com.saasresearcher.learning.identity.repository.UserAccountRepository;
 import com.saasresearcher.learning.identity.service.CredentialIssuer;
-import com.saasresearcher.learning.institution.api.InstitutionSettings;
+import com.saasresearcher.learning.workspace.api.WorkspaceService;
+import com.saasresearcher.learning.workspace.api.WorkspaceState;
 import java.time.Clock;
 import java.time.ZoneId;
-import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,9 +19,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Explicit demo mode (profile {@code demo}) for evaluation: creates demo-admin, demo-teacher and demo-student with a
- * published password on an empty installation. Refuses to start with production settings (secure cookies), so demo
- * credentials can never exist on a real deployment.
+ * Explicit demo mode (profile {@code demo}) for evaluation: on an installation that was never set up, creates an
+ * active workspace owned by a verified, approved demo-teacher plus a verified demo-student, both with a published
+ * password. Refuses to start with production settings (secure cookies), so demo accounts and their verification
+ * shortcut can never exist on a real deployment.
  */
 @Component
 @Profile("demo")
@@ -31,15 +33,15 @@ public class DemoAccounts implements ApplicationRunner {
 
     private final UserAccountRepository accounts;
     private final CredentialIssuer credentials;
-    private final InstitutionSettings institution;
+    private final WorkspaceService workspace;
     private final Clock clock;
     private final boolean secureCookies;
 
-    DemoAccounts(UserAccountRepository accounts, CredentialIssuer credentials, InstitutionSettings institution, Clock clock,
+    DemoAccounts(UserAccountRepository accounts, CredentialIssuer credentials, WorkspaceService workspace, Clock clock,
             @Value("${server.servlet.session.cookie.secure:true}") boolean secureCookies) {
         this.accounts = accounts;
         this.credentials = credentials;
-        this.institution = institution;
+        this.workspace = workspace;
         this.clock = clock;
         this.secureCookies = secureCookies;
     }
@@ -51,19 +53,22 @@ public class DemoAccounts implements ApplicationRunner {
             throw new IllegalStateException("Demo mode is for local evaluation only and cannot run with production settings "
                     + "(LEARNING_SECURE_COOKIES=true). Remove the 'demo' profile.");
         }
-        if (accounts.existsWithRole(Role.ADMINISTRATOR)) {
+        workspace.lockWorkspace();
+        if (workspace.getWorkspaceData().state() != WorkspaceState.REQUIRED) {
             return;
         }
-        institution.initialize("Demo School", ZoneId.of("Asia/Dhaka"));
-        create("demo-admin", "Demo Administrator", "admin@demo.invalid", Role.ADMINISTRATOR);
-        create("demo-teacher", "Demo Teacher", "teacher@demo.invalid", Role.TEACHER);
-        create("demo-student", "Demo Student", null, Role.STUDENT);
-        log.warn("Demo mode: created demo-admin, demo-teacher and demo-student with password '{}'", DEMO_PASSWORD);
+        UserAccount teacher = create("demo-teacher", "Demo Teacher", "teacher@demo.invalid", Role.TEACHER);
+        teacher.setTeacherStatus(TeacherStatus.APPROVED, clock.instant());
+        create("demo-student", "Demo Student", "student@demo.invalid", Role.STUDENT);
+        accounts.flush();
+        workspace.beginSetup("Demo School", ZoneId.of("Asia/Dhaka"), teacher.getId());
+        workspace.activate();
+        log.warn("Demo mode: created demo-teacher and demo-student with password '{}'", DEMO_PASSWORD);
     }
 
-    private void create(String username, String displayName, String email, Role role) {
-        UserAccount account = new UserAccount(username, email, displayName, Set.of(role), null, clock.instant());
-        credentials.setPassword(account, DEMO_PASSWORD);
-        accounts.save(account);
+    private UserAccount create(String username, String displayName, String email, Role role) {
+        UserAccount account = new UserAccount(username, email, displayName, role, credentials.hash(DEMO_PASSWORD), clock.instant());
+        account.verifyEmail(clock.instant());
+        return accounts.save(account);
     }
 }

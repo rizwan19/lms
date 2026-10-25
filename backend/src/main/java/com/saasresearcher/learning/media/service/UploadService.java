@@ -2,13 +2,11 @@ package com.saasresearcher.learning.media.service;
 
 import com.saasresearcher.learning.common.Actor;
 import com.saasresearcher.learning.common.ApiException;
-import com.saasresearcher.learning.common.Role;
 import com.saasresearcher.learning.media.api.AssetPurpose;
 import com.saasresearcher.learning.media.api.AssetStore;
 import com.saasresearcher.learning.media.api.StoredAsset;
 import com.saasresearcher.learning.media.api.UploadSource;
 import com.saasresearcher.learning.media.config.MediaProperties;
-import com.saasresearcher.learning.media.entity.FileType;
 import com.saasresearcher.learning.media.entity.MediaAsset;
 import com.saasresearcher.learning.media.repository.MediaAssetRepository;
 import com.saasresearcher.learning.media.service.UploadValidator.Validated;
@@ -68,7 +66,7 @@ public class UploadService {
             validatedFile = validated.file();
             StoredAsset stored;
             try (InputStream in = Files.newInputStream(validatedFile)) {
-                stored = store.put(new UploadSource(asset.storageKey(), in));
+                stored = store.put(new UploadSource(asset.getStorageKey(), in));
             }
             String storedName = validated.contentType().equals(type.mimeType) ? filename : SafeFilenames.withExtension(filename, ".png");
             asset.available(validated.contentType(), storedName, stored.sizeBytes(), stored.sha256(), validated.durationSeconds(), clock.instant());
@@ -83,7 +81,7 @@ public class UploadService {
     }
 
     Path staging(MediaAsset asset) {
-        return properties.stagingDir().resolve(asset.id().toString());
+        return properties.stagingDir().resolve(asset.getId().toString());
     }
 
     private ApiException reject(MediaAsset asset, RejectedUpload rejected) {
@@ -118,10 +116,12 @@ public class UploadService {
         };
     }
 
+    /** Verified teachers upload course files for their drafts; workspace branding needs an approved teacher. */
     private static void requireUploader(AssetPurpose purpose, Actor actor) {
-        boolean allowed = purpose == AssetPurpose.BRANDING_IMAGE ? actor.isAdministrator() : actor.isAdministrator() || actor.has(Role.TEACHER);
-        if (!allowed) {
-            throw ApiException.accessDenied("You cannot upload this kind of file");
+        if (purpose == AssetPurpose.BRANDING_IMAGE) {
+            actor.requireApprovedTeacher();
+        } else {
+            actor.requireVerifiedTeacher();
         }
     }
 }

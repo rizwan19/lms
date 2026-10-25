@@ -2,12 +2,12 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router'
 import { api } from '../../shared/api'
 import { QueryState, formatDateTime } from '../../shared/ui'
-import { useInstitutionTimezone } from '../../shared/useInstitution'
+import { useWorkspaceTimezone } from '../../shared/useWorkspace'
 import type { StudentExam } from './types'
 
 /** Exams of one enrollment, shown in the course player. */
 export function EnrollmentExams({ enrollmentId }: { enrollmentId: string }) {
-  const timeZone = useInstitutionTimezone()
+  const timeZone = useWorkspaceTimezone()
   const exams = useQuery({ queryKey: ['student-exams', enrollmentId], queryFn: () => api.get<StudentExam[]>(`/me/enrollments/${enrollmentId}/exams`) })
   return (
     <section className="card" aria-labelledby="student-exams">

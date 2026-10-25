@@ -44,11 +44,11 @@ test('administrator creates staff and students; teachers manage their own studen
   await expect(page.getByRole('alert')).toHaveText('Invalid username or password')
 })
 
-test('administrator updates institution settings', async ({ page }) => {
+test('administrator updates workspace settings', async ({ page }) => {
   await signInAsAdmin(page)
   await page.getByRole('link', { name: 'Settings' }).click()
   const name = unique('Shapla Tutoring')
-  await page.getByLabel('Institution name').fill(name)
+  await page.getByLabel('Workspace name').fill(name)
   await page.getByRole('button', { name: 'Save settings' }).click()
   await expect(page.getByRole('status')).toHaveText('Saved.')
   await expect(page.locator('.brand')).toHaveText(name)

@@ -7,885 +7,695 @@ info:
     mutating request carries the CSRF token from GET /auth/csrf in the X-XSRF-TOKEN header.
     Errors use RFC 9457-style problem responses {type,title,status,detail,code,fieldErrors,traceId}.
     Pages use {items,page,size,total} with zero-based pages, default size 25 and maximum 100.
-    Unrelated or forbidden resources answer 404 so their existence is not exposed.
+    Unrelated or forbidden resources answer 404 so their existence is not exposed. Course routes answer only
+    to the course's single author; approved teachers administer accounts but gain no course access.
+    Breaking v2 release: classes and class routes are gone; see docs/api/course-centric-breaking-changes.md.
 servers:
   - url: /api/v1
 tags:
   - name: auth
   - name: setup
-  - name: users
-  - name: institution
+  - name: workspace
   - name: notifications
   - name: operations
   - name: media
+  - name: catalog
   - name: courses
-  - name: classes
+  - name: enrollment
   - name: learning
   - name: exams
   - name: attempts
   - name: grading
+  - name: completion
   - name: certificates
   - name: reports
 paths:
   /auth/csrf:
     get:
       tags: [auth]
-      summary: Issue the CSRF cookie and return the token
+      summary: "Issue the CSRF cookie and return the token"
       responses:
-        '200': { description: Token, content: { application/json: { schema: { $ref: '#/components/schemas/CsrfToken' } } } }
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
   /auth/login:
     post:
       tags: [auth]
-      summary: Sign in with username (or email) and password; rotates session ID and CSRF token
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LoginRequest' } } } }
+      summary: "Sign in with username or email; unverified accounts get a limited session"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
-        '200': { description: Signed in, content: { application/json: { schema: { $ref: '#/components/schemas/Me' } } } }
-        '401': { $ref: '#/components/responses/Problem' }
-        '429': { $ref: '#/components/responses/Problem' }
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
   /auth/logout:
     post:
       tags: [auth]
-      summary: Sign out and invalidate the session
+      summary: "Sign out and invalidate the session"
       x-security-filter: true
       responses:
-        '204': { description: Signed out }
+        '204': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
   /auth/me:
     get:
       tags: [auth]
-      summary: Current account
+      summary: "Current account: role, emailVerified, teacherStatus and capabilities"
       responses:
-        '200': { description: Account, content: { application/json: { schema: { $ref: '#/components/schemas/Me' } } } }
-        '401': { $ref: '#/components/responses/Problem' }
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
   /auth/me/password:
     put:
       tags: [auth]
-      summary: Change own password; revokes the account's other sessions
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ChangePassword' } } } }
+      summary: "Change own password; revokes the account's other sessions"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
-        '204': { description: Changed }
-        '400': { $ref: '#/components/responses/Problem' }
+        '204': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: "Public signup as TEACHER or STUDENT; returns no session or token"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '201': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /auth/email/verify:
+    post:
+      tags: [auth]
+      summary: "Consume an email verification token"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '204': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /auth/email/resend:
+    post:
+      tags: [auth]
+      summary: "Invalidate the previous link and send a new verification email"
+      responses:
+        '202': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
   /auth/password-reset/request:
     post:
       tags: [auth]
-      summary: Request a reset email; always 202 so account existence is not revealed
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [usernameOrEmail], properties: { usernameOrEmail: { type: string } } } } } }
+      summary: "Request a reset email to the verified address; always 202"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
-        '202': { description: Accepted }
+        '202': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
   /auth/password-reset/confirm:
     post:
       tags: [auth]
-      summary: Set a new password with a 30-minute single-use token; revokes sessions
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TokenPassword' } } } }
+      summary: "Set a new password with a 30-minute single-use token; revokes sessions"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
-        '204': { description: Password set }
-        '400': { $ref: '#/components/responses/Problem' }
-  /auth/invitations/accept:
-    post:
-      tags: [auth]
-      summary: Set the first password with a 72-hour single-use invitation token
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TokenPassword' } } } }
-      responses:
-        '204': { description: Password set }
-        '400': { $ref: '#/components/responses/Problem' }
+        '204': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
   /setup:
     get:
       tags: [setup]
-      summary: Whether first-administrator setup is still required
+      summary: "Setup state: REQUIRED, OWNER_VERIFICATION_PENDING or ACTIVE"
       responses:
-        '200': { description: Status, content: { application/json: { schema: { type: object, properties: { required: { type: boolean } } } } } }
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
     post:
       tags: [setup]
-      summary: One-use installation setup creating the first administrator
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SetupRequest' } } } }
+      summary: "Create the unverified workspace owner and send the verification email"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
-        '201': { description: Administrator created, content: { application/json: { schema: { $ref: '#/components/schemas/Me' } } } }
-        '409': { $ref: '#/components/responses/Problem' }
-  /users:
+        '202': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /workspace:
     get:
-      tags: [users]
-      summary: Accounts in the caller's scope (administrators all; teachers their students)
-      parameters:
-        - { name: search, in: query, schema: { type: string } }
-        - { name: role, in: query, schema: { $ref: '#/components/schemas/Role' } }
-        - { $ref: '#/components/parameters/Page' }
-        - { $ref: '#/components/parameters/Size' }
+      tags: [workspace]
+      summary: "Public branding and settings"
       responses:
-        '200': { description: Page of accounts, content: { application/json: { schema: { $ref: '#/components/schemas/AccountPage' } } } }
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+    put:
+      tags: [workspace]
+      summary: "Update settings (approved teachers)"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /workspace/users:
+    get:
+      tags: [workspace]
+      summary: "Account administration list (approved teachers)"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /workspace/users/{id}:
+    get:
+      tags: [workspace]
+      summary: "One account (approved teachers)"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /workspace/users/{id}/status:
+    put:
+      tags: [workspace]
+      summary: "Suspend or reactivate an account; never your own"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /workspace/users/{id}/password-reset:
     post:
-      tags: [users]
-      summary: Create an account; teachers may only create students. Response is no-store.
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreateAccount' } } } }
+      tags: [workspace]
+      summary: "Email the account a recovery link"
       responses:
-        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/CreatedAccount' } } } }
-        '409': { $ref: '#/components/responses/Problem' }
-  /users/{id}:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
+        '202': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /workspace/teacher-applications:
     get:
-      tags: [users]
-      summary: Account in scope
+      tags: [workspace]
+      summary: "Teacher application inbox (approved teachers)"
       responses:
-        '200': { description: Account, content: { application/json: { schema: { $ref: '#/components/schemas/Account' } } } }
-        '404': { $ref: '#/components/responses/Problem' }
-    put:
-      tags: [users]
-      summary: Administrator profile and role update with expected revision
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateAccount' } } } }
-      responses:
-        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Account' } } } }
-        '409': { $ref: '#/components/responses/Problem' }
-  /users/{id}/status:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    put:
-      tags: [users]
-      summary: Enable or disable an account (administrator); disabling revokes sessions
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [status], properties: { status: { $ref: '#/components/schemas/AccountStatus' } } } } } }
-      responses:
-        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Account' } } } }
-        '409': { $ref: '#/components/responses/Problem' }
-  /users/{id}/assisted-reset:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /workspace/teacher-applications/{id}/decision:
     post:
-      tags: [users]
-      summary: Issue a 24-hour one-use temporary password; revokes sessions and forces a password change. No-store.
+      tags: [workspace]
+      summary: "Approve or reject; first decision wins, no self-review"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
-        '200': { description: Temporary credential, content: { application/json: { schema: { $ref: '#/components/schemas/TemporaryCredential' } } } }
-        '404': { $ref: '#/components/responses/Problem' }
-  /institution:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /me/teacher-applications:
+    post:
+      tags: [workspace]
+      summary: "Reapply after a rejection (24-hour cooldown)"
+      responses:
+        '201': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /me/teacher-application:
     get:
-      tags: [institution]
-      summary: Public institution name and timezone
+      tags: [workspace]
+      summary: "Own latest teacher application"
       responses:
-        '200': { description: Settings, content: { application/json: { schema: { $ref: '#/components/schemas/Institution' } } } }
-    put:
-      tags: [institution]
-      summary: Administrator settings update with expected revision
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateInstitution' } } } }
-      responses:
-        '200': { description: Updated, content: { application/json: { schema: { $ref: '#/components/schemas/Institution' } } } }
-        '409': { $ref: '#/components/responses/Problem' }
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
   /notifications:
     get:
       tags: [notifications]
-      summary: Own in-app notifications, newest first
-      parameters:
-        - { name: unreadOnly, in: query, schema: { type: boolean, default: false } }
-        - { $ref: '#/components/parameters/Page' }
-        - { $ref: '#/components/parameters/Size' }
+      summary: "Own in-app notifications"
       responses:
-        '200': { description: Page of notifications, content: { application/json: { schema: { $ref: '#/components/schemas/NotificationPage' } } } }
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
   /notifications/{id}/read:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
     put:
       tags: [notifications]
-      summary: Mark an own notification read (idempotent)
+      summary: "Mark own notification read"
       responses:
-        '204': { description: Marked read }
-        '404': { $ref: '#/components/responses/Problem' }
+        '204': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
   /admin/system-status:
     get:
       tags: [operations]
-      summary: Administrator delivery health
+      summary: "SMTP configuration and failed job count (approved teachers)"
       responses:
-        '200':
-          description: Status
-          content: { application/json: { schema: { type: object, properties: { emailConfigured: { type: boolean }, failedJobs: { type: integer } } } } }
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
   /admin/failed-jobs:
     get:
       tags: [operations]
-      summary: Terminally failed background jobs (administrator)
-      parameters:
-        - { $ref: '#/components/parameters/Page' }
-        - { $ref: '#/components/parameters/Size' }
+      summary: "Terminally failed jobs (approved teachers)"
       responses:
-        '200': { description: Page of failed jobs, content: { application/json: { schema: { $ref: '#/components/schemas/FailedJobPage' } } } }
-  /media:
-    post:
-      tags: [media]
-      summary: Upload a file as the raw request body (streamed; staff only, branding images administrators only)
-      description: |
-        Accepted: VIDEO video/mp4 (H.264/AAC, max 500 MiB); DOCUMENT application/pdf or text/plain (UTF-8, max 25 MiB);
-        BRANDING_IMAGE image/png or image/jpeg (max 5 MiB, re-encoded as PNG). Content must match the declared type.
-      parameters:
-        - { name: purpose, in: query, required: true, schema: { $ref: '#/components/schemas/AssetPurpose' } }
-        - { name: filename, in: query, required: true, schema: { type: string } }
-      requestBody:
-        required: true
-        content:
-          video/mp4: { schema: { type: string, format: binary } }
-          application/pdf: { schema: { type: string, format: binary } }
-          text/plain: { schema: { type: string, format: binary } }
-          image/png: { schema: { type: string, format: binary } }
-          image/jpeg: { schema: { type: string, format: binary } }
-      responses:
-        '201': { description: Available asset, content: { application/json: { schema: { $ref: '#/components/schemas/Asset' } } } }
-        '413': { $ref: '#/components/responses/Problem' }
-        '415': { $ref: '#/components/responses/Problem' }
-        '422': { $ref: '#/components/responses/Problem' }
-  /media/{id}:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [media]
-      summary: Metadata of a readable asset
-      responses:
-        '200': { description: Asset, content: { application/json: { schema: { $ref: '#/components/schemas/Asset' } } } }
-        '404': { $ref: '#/components/responses/Problem' }
-  /media/{id}/content:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [media]
-      summary: Private delivery, authorized on every request; supports a single HTTP Range. Cache-Control private, no-store.
-      parameters:
-        - { name: download, in: query, schema: { type: boolean, default: false } }
-        - { name: Range, in: header, schema: { type: string, example: bytes=0-1023 } }
-      responses:
-        '200': { description: Whole file }
-        '206': { description: Requested range }
-        '404': { $ref: '#/components/responses/Problem' }
-        '416': { description: Range not satisfiable }
-  /courses:
-    get:
-      tags: [courses]
-      summary: Courses the caller authors (administrators see all)
-      parameters:
-        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, ARCHIVED], default: ACTIVE } }
-        - { $ref: '#/components/parameters/Page' }
-        - { $ref: '#/components/parameters/Size' }
-      responses:
-        '200': { description: Page of course summaries, content: { application/json: { schema: { $ref: '#/components/schemas/CourseSummaryPage' } } } }
-    post:
-      tags: [courses]
-      summary: Create a course with an empty draft; the creator becomes a course teacher
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [title], properties: { title: { type: string, maxLength: 200 } } } } } }
-      responses:
-        '201': { description: Course, content: { application/json: { schema: { $ref: '#/components/schemas/CourseDetail' } } } }
-  /courses/{id}:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [courses]
-      summary: Course detail with teachers, editions and draft header
-      responses:
-        '200': { description: Course, content: { application/json: { schema: { $ref: '#/components/schemas/CourseDetail' } } } }
-        '404': { $ref: '#/components/responses/Problem' }
-  /courses/{id}/draft:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [courses]
-      summary: The editable draft (409 NO_DRAFT when none exists)
-      responses:
-        '200': { description: Draft, content: { application/json: { schema: { $ref: '#/components/schemas/Draft' } } } }
-        '409': { $ref: '#/components/responses/Problem' }
-    put:
-      tags: [courses]
-      summary: Replace the draft tree with expected revision; HTML is sanitized, embeds take provider IDs only
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DraftInput' } } } }
-      responses:
-        '200': { description: Saved draft, content: { application/json: { schema: { $ref: '#/components/schemas/Draft' } } } }
-        '400': { $ref: '#/components/responses/Problem' }
-        '409': { $ref: '#/components/responses/Problem' }
-    post:
-      tags: [courses]
-      summary: Start a correction draft copied from a published edition (409 DRAFT_EXISTS)
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [fromVersionId], properties: { fromVersionId: { type: string, format: uuid } } } } } }
-      responses:
-        '201': { description: Draft, content: { application/json: { schema: { $ref: '#/components/schemas/Draft' } } } }
-        '409': { $ref: '#/components/responses/Problem' }
-  /courses/{id}/publish:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [courses]
-      summary: Seal the draft as the next immutable edition
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [expectedRevision], properties: { expectedRevision: { type: integer } } } } } }
-      responses:
-        '200': { description: Published edition, content: { application/json: { schema: { $ref: '#/components/schemas/PublishedCourse' } } } }
-        '400': { $ref: '#/components/responses/Problem' }
-        '409': { $ref: '#/components/responses/Problem' }
-  /courses/{id}/preview:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [courses]
-      summary: Draft (default) or a given edition as students see it
-      parameters:
-        - { name: versionId, in: query, schema: { type: string, format: uuid } }
-      responses:
-        '200': { description: Preview, content: { application/json: { schema: { $ref: '#/components/schemas/CoursePreview' } } } }
-  /courses/{id}/archive:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [courses]
-      summary: Remove from catalogue and class creation; existing classes keep access
-      responses:
-        '204': { description: Archived }
-  /courses/{id}/restore:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [courses]
-      summary: Return an archived course to the active list
-      responses:
-        '204': { description: Restored }
-  /courses/{id}/teachers:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    put:
-      tags: [courses]
-      summary: Replace course teachers (administrator)
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [teacherIds], properties: { teacherIds: { type: array, items: { type: string, format: uuid } } } } } } }
-      responses:
-        '200': { description: Course, content: { application/json: { schema: { $ref: '#/components/schemas/CourseDetail' } } } }
-  /classes:
-    get:
-      tags: [classes]
-      summary: Classes the caller teaches (administrators see all)
-      parameters:
-        - { $ref: '#/components/parameters/Page' }
-        - { $ref: '#/components/parameters/Size' }
-      responses:
-        '200': { description: Page of classes, content: { application/json: { schema: { $ref: '#/components/schemas/ClassSummaryPage' } } } }
-    post:
-      tags: [classes]
-      summary: Create a DRAFT class for a published, non-archived edition (course teacher or administrator)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [courseVersionId, name]
-              properties:
-                courseVersionId: { type: string, format: uuid }
-                name: { type: string, maxLength: 200 }
-                startsAt: { type: [string, 'null'], format: date-time }
-                endsAt: { type: [string, 'null'], format: date-time }
-      responses:
-        '201': { description: Class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassDetail' } } } }
-  /classes/{id}:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [classes]
-      summary: Class detail (assigned class teacher or administrator)
-      responses:
-        '200': { description: Class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassDetail' } } } }
-        '404': { $ref: '#/components/responses/Problem' }
-    put:
-      tags: [classes]
-      summary: Rename or reschedule with expected revision (audited)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [name, expectedRevision]
-              properties:
-                name: { type: string }
-                startsAt: { type: [string, 'null'], format: date-time }
-                endsAt: { type: [string, 'null'], format: date-time }
-                expectedRevision: { type: integer }
-      responses:
-        '200': { description: Class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassDetail' } } } }
-        '409': { $ref: '#/components/responses/Problem' }
-  /classes/{id}/activate:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [classes]
-      summary: DRAFT → ACTIVE
-      responses:
-        '200': { description: Class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassDetail' } } } }
-        '409': { $ref: '#/components/responses/Problem' }
-  /classes/{id}/archive:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [classes]
-      summary: Archive; learning access ends, history stays readable
-      responses:
-        '200': { description: Class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassDetail' } } } }
-  /classes/{id}/teachers:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    put:
-      tags: [classes]
-      summary: Replace class teachers; removed teachers lose access on their next request
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [teacherIds], properties: { teacherIds: { type: array, items: { type: string, format: uuid } } } } } } }
-      responses:
-        '200': { description: Class, content: { application/json: { schema: { $ref: '#/components/schemas/ClassDetail' } } } }
-  /classes/{id}/enrollments:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [classes]
-      summary: Class roster
-      parameters:
-        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, SUSPENDED, WITHDRAWN] } }
-        - { $ref: '#/components/parameters/Page' }
-        - { $ref: '#/components/parameters/Size' }
-      responses:
-        '200': { description: Page of roster rows, content: { application/json: { schema: { $ref: '#/components/schemas/RosterPage' } } } }
-    post:
-      tags: [classes]
-      summary: Enroll an existing active student by username (409 ALREADY_ENROLLED)
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [username], properties: { username: { type: string } } } } } }
-      responses:
-        '201': { description: Enrollment, content: { application/json: { schema: { $ref: '#/components/schemas/RosterRow' } } } }
-        '409': { $ref: '#/components/responses/Problem' }
-  /classes/{id}/enrollments/{enrollmentId}:
-    parameters:
-      - { $ref: '#/components/parameters/Id' }
-      - { name: enrollmentId, in: path, required: true, schema: { type: string, format: uuid } }
-    put:
-      tags: [classes]
-      summary: Activate, suspend or withdraw an enrollment
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [status], properties: { status: { type: string, enum: [ACTIVE, SUSPENDED, WITHDRAWN] } } } } } }
-      responses:
-        '200': { description: Enrollment, content: { application/json: { schema: { $ref: '#/components/schemas/RosterRow' } } } }
-  /classes/{id}/imports/preview:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [classes]
-      summary: Validate a roster CSV (username,display_name,email; UTF-8, optional BOM, max 1 MiB and 1,000 rows)
-      requestBody: { required: true, content: { text/csv: { schema: { type: string } } } }
-      responses:
-        '200': { description: Row-by-row validation, content: { application/json: { schema: { $ref: '#/components/schemas/RosterImportPreview' } } } }
-        '400': { $ref: '#/components/responses/Problem' }
-        '413': { $ref: '#/components/responses/Problem' }
-  /classes/{id}/imports/commit:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [classes]
-      summary: Revalidate and import all rows or none. Returns one-time temporary passwords for students without invitations (no-store).
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [digest, rows]
-              properties:
-                digest: { type: string }
-                rows: { type: array, maxItems: 1000, items: { type: object, properties: { username: { type: string }, displayName: { type: string }, email: { type: [string, 'null'] } } } }
-      responses:
-        '200':
-          description: Imported
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  enrolled: { type: integer }
-                  created: { type: integer }
-                  invited: { type: integer }
-                  credentials: { type: array, items: { $ref: '#/components/schemas/TemporaryCredential' } }
-        '409': { $ref: '#/components/responses/Problem' }
-        '422': { $ref: '#/components/responses/Problem' }
-  /me/learning:
-    get:
-      tags: [learning]
-      summary: Own enrollments with progress, including historical ones
-      responses:
-        '200':
-          description: Dashboard
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    enrollmentId: { type: string, format: uuid }
-                    className: { type: string }
-                    courseTitle: { type: string }
-                    edition: { type: integer }
-                    enrollmentStatus: { type: string, enum: [ACTIVE, SUSPENDED, WITHDRAWN] }
-                    classStatus: { type: string, enum: [DRAFT, ACTIVE, ARCHIVED] }
-                    accessOpen: { type: boolean }
-                    startsAt: { type: [string, 'null'], format: date-time }
-                    endsAt: { type: [string, 'null'], format: date-time }
-                    summary: { $ref: '#/components/schemas/LessonSummary' }
-  /me/enrollments/{id}:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [learning]
-      summary: Course player for an own active enrollment in an open class (403 ENROLLMENT_INACTIVE otherwise)
-      responses:
-        '200':
-          description: Player
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  enrollmentId: { type: string, format: uuid }
-                  className: { type: string }
-                  course: { $ref: '#/components/schemas/PublishedCourse' }
-                  progress: { type: array, items: { $ref: '#/components/schemas/LessonProgress' } }
-                  summary: { $ref: '#/components/schemas/LessonSummary' }
-        '403': { $ref: '#/components/responses/Problem' }
-        '404': { $ref: '#/components/responses/Problem' }
-  /enrollments/{id}/lessons/{lessonId}/progress:
-    parameters:
-      - { $ref: '#/components/parameters/Id' }
-      - { name: lessonId, in: path, required: true, schema: { type: string, format: uuid } }
-    put:
-      tags: [learning]
-      summary: Save explicit completion and resume position with expected revision (0 creates); resume never decreases
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [expectedRevision, completed, resumeSeconds]
-              properties:
-                expectedRevision: { type: integer }
-                completed: { type: boolean }
-                resumeSeconds: { type: integer, minimum: 0 }
-      responses:
-        '200': { description: Saved, content: { application/json: { schema: { $ref: '#/components/schemas/LessonProgress' } } } }
-        '403': { $ref: '#/components/responses/Problem' }
-        '409': { $ref: '#/components/responses/Problem' }
-  /exams:
-    get:
-      tags: [exams]
-      summary: Exams of a course (course authors); latest edition and draft revision per exam
-      parameters: [{ name: courseId, in: query, required: true, schema: { type: string, format: uuid } }]
-      responses:
-        '200': { description: Exams, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ExamSummary' } } } } }
-    post:
-      tags: [exams]
-      summary: Create an exam with an empty draft
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [courseId, title], properties: { courseId: { type: string, format: uuid }, title: { type: string } } } } } }
-      responses:
-        '201': { description: Exam, content: { application/json: { schema: { $ref: '#/components/schemas/ExamDetail' } } } }
-  /exams/{id}:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [exams]
-      summary: Exam editions and draft header
-      responses:
-        '200': { description: Exam, content: { application/json: { schema: { $ref: '#/components/schemas/ExamDetail' } } } }
-  /exams/{id}/draft:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [exams]
-      summary: Draft with answer keys (authors only)
-      responses:
-        '200': { description: Draft, content: { application/json: { schema: { $ref: '#/components/schemas/ExamContent' } } } }
-    put:
-      tags: [exams]
-      summary: Replace draft questions with expected revision; 1-100 questions, prompts up to 10,000 characters, points with 2 decimals
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ExamDraftInput' } } } }
-      responses:
-        '200': { description: Draft, content: { application/json: { schema: { $ref: '#/components/schemas/ExamContent' } } } }
-        '400': { $ref: '#/components/responses/Problem' }
-        '409': { $ref: '#/components/responses/Problem' }
-    post:
-      tags: [exams]
-      summary: Start a correction draft from a published edition
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [fromVersionId], properties: { fromVersionId: { type: string, format: uuid } } } } } }
-      responses:
-        '201': { description: Draft, content: { application/json: { schema: { $ref: '#/components/schemas/ExamContent' } } } }
-  /exams/{id}/publish:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [exams]
-      summary: Seal the draft as the next immutable edition; objective questions need complete keys
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [expectedRevision], properties: { expectedRevision: { type: integer } } } } } }
-      responses:
-        '200': { description: Edition, content: { application/json: { schema: { $ref: '#/components/schemas/ExamContent' } } } }
-        '400': { $ref: '#/components/responses/Problem' }
-  /exams/{id}/editions/{versionId}:
-    parameters:
-      - { $ref: '#/components/parameters/Id' }
-      - { name: versionId, in: path, required: true, schema: { type: string, format: uuid } }
-    get:
-      tags: [exams]
-      summary: Teacher preview of an edition, including keys
-      responses:
-        '200': { description: Edition, content: { application/json: { schema: { $ref: '#/components/schemas/ExamContent' } } } }
-  /exam-assignments:
-    get:
-      tags: [exams]
-      summary: Exam schedules of a class (class teachers)
-      parameters: [{ name: classId, in: query, required: true, schema: { type: string, format: uuid } }]
-      responses:
-        '200': { description: Assignments, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ExamAssignment' } } } } }
-    post:
-      tags: [exams]
-      summary: Add an optional practice assignment for a published exam of the class's course
-      requestBody: { required: true, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ScheduleInput' }, { type: object, required: [classId, examVersionId], properties: { classId: { type: string, format: uuid }, examVersionId: { type: string, format: uuid } } }] } } } }
-      responses:
-        '201': { description: Assignment, content: { application/json: { schema: { $ref: '#/components/schemas/ExamAssignment' } } } }
-        '409': { $ref: '#/components/responses/Problem' }
-  /exam-assignments/available:
-    get:
-      tags: [exams]
-      summary: Published exams of the class's course
-      parameters: [{ name: classId, in: query, required: true, schema: { type: string, format: uuid } }]
-      responses:
-        '200': { description: Exams, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ExamSummary' } } } } }
-  /exam-assignments/{id}:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    put:
-      tags: [exams]
-      summary: Reschedule or change policies; the exam edition and required flag never change
-      requestBody: { required: true, content: { application/json: { schema: { allOf: [{ $ref: '#/components/schemas/ScheduleInput' }, { type: object, required: [expectedRevision], properties: { expectedRevision: { type: integer } } }] } } } }
-      responses:
-        '200': { description: Assignment, content: { application/json: { schema: { $ref: '#/components/schemas/ExamAssignment' } } } }
-        '400': { $ref: '#/components/responses/Problem' }
-        '409': { $ref: '#/components/responses/Problem' }
-  /me/enrollments/{id}/exams:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [attempts]
-      summary: Own exams for an enrollment with own attempts (no keys, no unpublished scores)
-      responses:
-        '200': { description: Exams, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/StudentExam' } } } } }
-  /exam-assignments/{id}/attempts:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [attempts]
-      summary: Start an attempt, or return the one in progress; deadline = min(start + duration, closing time)
-      responses:
-        '200': { description: Attempt, content: { application/json: { schema: { $ref: '#/components/schemas/AttemptView' } } } }
-        '403': { $ref: '#/components/responses/Problem' }
-        '409': { description: EXAM_NOT_OPEN or ATTEMPT_LIMIT_REACHED, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
-  /attempts/{id}:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [attempts]
-      summary: Own attempt; an expired attempt is finalized from saved answers first
-      responses:
-        '200': { description: Attempt, content: { application/json: { schema: { $ref: '#/components/schemas/AttemptView' } } } }
-        '404': { $ref: '#/components/responses/Problem' }
-  /attempts/{id}/answers/{questionId}:
-    parameters:
-      - { $ref: '#/components/parameters/Id' }
-      - { name: questionId, in: path, required: true, schema: { type: string, format: uuid } }
-    put:
-      tags: [attempts]
-      summary: Save one answer with expected revision (0 creates)
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [expectedRevision]
-              properties:
-                expectedRevision: { type: integer }
-                selectedOptionIds: { type: array, items: { type: string, format: uuid } }
-                writtenText: { type: [string, 'null'], maxLength: 20000 }
-      responses:
-        '200': { description: Durably saved, content: { application/json: { schema: { type: object, properties: { questionId: { type: string, format: uuid }, revision: { type: integer }, savedAt: { type: string, format: date-time } } } } } }
-        '409': { description: ANSWER_REVISION_CONFLICT (body.current holds the saved answer), ATTEMPT_EXPIRED or ATTEMPT_CLOSED, content: { application/problem+json: { schema: { $ref: '#/components/schemas/Problem' } } } }
-  /attempts/{id}/submit:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [attempts]
-      summary: Finalize once from saved answers; repeated calls return the same outcome
-      responses:
-        '200': { description: Outcome, content: { application/json: { schema: { type: object, properties: { attemptId: { type: string, format: uuid }, status: { type: string }, finalizedReason: { type: string, enum: [SUBMITTED, EXPIRED] }, finalizedAt: { type: string, format: date-time } } } } } }
-  /grading:
-    get:
-      tags: [grading]
-      summary: Grading queue of a class (class teachers); unpublished work first
-      parameters:
-        - { name: classId, in: query, required: true, schema: { type: string, format: uuid } }
-        - { name: status, in: query, schema: { type: string, enum: [PENDING, PUBLISHED, ALL], default: PENDING } }
-        - { $ref: '#/components/parameters/Page' }
-        - { $ref: '#/components/parameters/Size' }
-      responses:
-        '200': { description: Page of attempts }
-  /grading/attempts/{id}:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [grading]
-      summary: Attempt with key, answers, current revision grades and revision history (staff only)
-      responses:
-        '200': { description: Grade view }
-        '404': { $ref: '#/components/responses/Problem' }
-  /grading/attempts/{id}/answers/{questionId}:
-    parameters:
-      - { $ref: '#/components/parameters/Id' }
-      - { name: questionId, in: path, required: true, schema: { type: string, format: uuid } }
-    put:
-      tags: [grading]
-      summary: Grade a written answer (0 to question points, 2 decimals) or add feedback (max 5000 characters); expected revision
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [expectedRevision], properties: { expectedRevision: { type: integer }, points: { type: [number, 'null'] }, feedback: { type: string } } } } } }
-      responses:
-        '200': { description: Grade }
-        '409': { $ref: '#/components/responses/Problem' }
-  /grading/attempts/{id}/finalize:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [grading]
-      summary: Sum grades once every written answer is graded (409 GRADING_INCOMPLETE otherwise)
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [expectedRevision], properties: { expectedRevision: { type: integer } } } } } }
-      responses:
-        '200': { description: Finalized revision }
-        '409': { $ref: '#/components/responses/Problem' }
-  /grading/attempts/{id}/publish:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [grading]
-      summary: Publish the finalized revision as an immutable result; supersedes the previous one
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [expectedRevision], properties: { expectedRevision: { type: integer } } } } } }
-      responses:
-        '200': { description: Published result }
-        '409': { $ref: '#/components/responses/Problem' }
-  /grading/attempts/{id}/regrade:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [grading]
-      summary: Open a new draft from the published grades with a reason (max 1000); students keep the old result until republication
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, maxLength: 1000 } } } } } }
-      responses:
-        '200': { description: New draft revision }
-        '409': { $ref: '#/components/responses/Problem' }
-  /me/results:
-    get:
-      tags: [grading]
-      summary: Own finalized attempts; PENDING results carry no score
-      responses:
-        '200': { description: Results }
-  /me/results/{attemptId}:
-    parameters: [{ name: attemptId, in: path, required: true, schema: { type: string, format: uuid } }]
-    get:
-      tags: [grading]
-      summary: Own published result with per-question points and feedback; keys and explanations only when the feedback policy releases them
-      responses:
-        '200': { description: Result }
-        '404': { $ref: '#/components/responses/Problem' }
-  /me/enrollments/{id}/completion:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [learning]
-      summary: Own completion status with lesson and required-exam requirements (pending grading shown explicitly)
-      responses:
-        '200':
-          description: Completion state
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  enrollmentId: { type: string, format: uuid }
-                  status: { type: string, enum: [NOT_ELIGIBLE, ACHIEVED, INVALIDATED] }
-                  completionId: { type: [string, 'null'], format: uuid }
-                  lessons: { $ref: '#/components/schemas/LessonSummary' }
-                  exams: { type: array, items: { type: object, properties: { assignmentId: { type: string, format: uuid }, title: { type: string }, publishedPass: { type: boolean }, pendingGrading: { type: boolean } } } }
-  /me/certificates:
-    get:
-      tags: [certificates]
-      summary: Own certificates (never includes the verification token)
-      responses:
-        '200': { description: Certificates, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Certificate' } } } } }
-  /certificates:
-    get:
-      tags: [certificates]
-      summary: Certificates of a class (class teachers and administrators)
-      parameters: [{ name: classId, in: query, required: true, schema: { type: string, format: uuid } }]
-      responses:
-        '200': { description: Certificates, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Certificate' } } } } }
-  /certificates/{id}/download:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [certificates]
-      summary: PDF for the owner (also after withdrawal) or the class's teachers; issued certificates only
-      responses:
-        '200': { description: PDF, content: { application/pdf: { schema: { type: string, format: binary } } } }
-        '404': { $ref: '#/components/responses/Problem' }
-        '409': { $ref: '#/components/responses/Problem' }
-  /certificates/{id}/revoke:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [certificates]
-      summary: Revoke with a reason (class teachers and administrators; audited)
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, maxLength: 1000 } } } } } }
-      responses:
-        '200': { description: Certificate, content: { application/json: { schema: { $ref: '#/components/schemas/Certificate' } } } }
-  /certificates/{id}/reinstate:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [certificates]
-      summary: Administrator reinstatement with a reason; requires an achieved completion and re-renders from the original snapshot
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [reason], properties: { reason: { type: string, maxLength: 1000 } } } } } }
-      responses:
-        '200': { description: Certificate, content: { application/json: { schema: { $ref: '#/components/schemas/Certificate' } } } }
-        '409': { $ref: '#/components/responses/Problem' }
-  /certificates/{id}/retry:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [certificates]
-      summary: Retry a failed render
-      responses:
-        '200': { description: Certificate, content: { application/json: { schema: { $ref: '#/components/schemas/Certificate' } } } }
-  /public/certificates/{token}:
-    parameters: [{ name: token, in: path, required: true, schema: { type: string } }]
-    get:
-      tags: [certificates]
-      summary: Public verification (404 when disabled or unknown); minimal data, student only when enabled at issuance
-      security: []
-      responses:
-        '200':
-          description: Status
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  status: { type: string, enum: [VALID, REVOKED] }
-                  institution: { type: [string, 'null'] }
-                  course: { type: [string, 'null'] }
-                  completedOn: { type: [string, 'null'], format: date }
-                  student: { type: [string, 'null'] }
-        '404': { $ref: '#/components/responses/Problem' }
-  /reports/classes/{id}/progress:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [reports]
-      summary: Class progress matrix (class teachers); lesson percent counts required lessons only, null when none are required
-      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Size' }]
-      responses:
-        '200': { description: Page of StudentProgressRow }
-  /reports/classes/{id}/scores:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [reports]
-      summary: Best published score per assignment with its revision; pending grading flagged, never shown as zero
-      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Size' }]
-      responses:
-        '200': { description: Page of StudentScoreRow }
-  /reports/classes/{id}/export:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    post:
-      tags: [reports]
-      summary: Queue a formula-safe CSV export (UTC and institution-timezone times) for the requester only
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [type], properties: { type: { type: string, enum: [PROGRESS, SCORES] } } } } } }
-      responses:
-        '202': { description: Export queued }
-  /reports/classes/{id}/exports:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [reports]
-      summary: The caller's recent exports for the class
-      responses:
-        '200': { description: Exports }
-  /reports/exports/{id}/download:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [reports]
-      summary: Download a ready export; only the requester while they still teach the class
-      responses:
-        '200': { description: CSV, content: { text/csv: { schema: { type: string } } } }
-        '404': { $ref: '#/components/responses/Problem' }
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
   /admin/maintenance:
     get:
       tags: [operations]
-      summary: Maintenance switch state (administrator)
+      summary: "Maintenance state"
       responses:
-        '200': { description: State, content: { application/json: { schema: { type: object, properties: { active: { type: boolean }, reason: { type: [string, 'null'] }, updatedAt: { type: string, format: date-time } } } } } }
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
     put:
       tags: [operations]
-      summary: Turn maintenance on or off; while on, mutations return 503 MAINTENANCE and jobs are not claimed
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [active], properties: { active: { type: boolean }, reason: { type: [string, 'null'] } } } } } }
+      summary: "Start or end maintenance"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
       responses:
-        '200': { description: State }
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /media:
+    post:
+      tags: [media]
+      summary: "Raw-body upload; course files by verified teachers, branding by approved teachers"
+      responses:
+        '201': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /media/{id}:
+    get:
+      tags: [media]
+      summary: "Asset metadata (uploader, course author, active learner)"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /media/{id}/content:
+    get:
+      tags: [media]
+      summary: "Authorized private delivery with byte ranges"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /catalog/courses:
+    get:
+      tags: [catalog]
+      summary: "Public summaries of active published courses"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /catalog/courses/{id}:
+    get:
+      tags: [catalog]
+      summary: "Public course summary and outline"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /courses:
+    get:
+      tags: [courses]
+      summary: "The author's own courses"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [courses]
+      summary: "Create a course (verified teachers)"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '201': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /courses/{id}:
+    get:
+      tags: [courses]
+      summary: "Course detail (author only)"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /courses/{id}/draft:
+    get:
+      tags: [courses]
+      summary: "Draft content"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+    put:
+      tags: [courses]
+      summary: "Save the draft"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [courses]
+      summary: "Start a correction draft from an edition"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '201': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /courses/{id}/publish:
+    post:
+      tags: [courses]
+      summary: "Publish the draft as the next edition (approved author)"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /courses/{id}/preview:
+    get:
+      tags: [courses]
+      summary: "Draft or edition as learners see it"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /courses/{id}/archive:
+    post:
+      tags: [courses]
+      summary: "Archive: leaves the catalog, keeps existing learners"
+      responses:
+        '204': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /courses/{id}/restore:
+    post:
+      tags: [courses]
+      summary: "Restore an archived course"
+      responses:
+        '204': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /courses/{id}/access-requests:
+    get:
+      tags: [enrollment]
+      summary: "Author's request inbox"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [enrollment]
+      summary: "Request access as a verified learner"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /me/access-requests:
+    get:
+      tags: [enrollment]
+      summary: "Own access requests"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /access-requests/{id}/cancel:
+    post:
+      tags: [enrollment]
+      summary: "Cancel own pending request"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /access-requests/{id}/decision:
+    post:
+      tags: [enrollment]
+      summary: "Author approves (grants enrollment) or rejects"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /courses/{id}/invitations:
+    get:
+      tags: [enrollment]
+      summary: "Author's invitations"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [enrollment]
+      summary: "Invite one email address"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '201': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /courses/{id}/invitations/bulk:
+    post:
+      tags: [enrollment]
+      summary: "Invite up to 100 unique addresses"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '201': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /course-invitations/{id}/revoke:
+    post:
+      tags: [enrollment]
+      summary: "Revoke a pending invitation"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /course-invitations/accept:
+    post:
+      tags: [enrollment]
+      summary: "Accept as the verified matching recipient"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /me/enrollments:
+    get:
+      tags: [enrollment]
+      summary: "Own enrollments, including historical ones"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /me/enrollments/{id}/withdraw:
+    post:
+      tags: [enrollment]
+      summary: "Withdraw from a course"
+      responses:
+        '204': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /courses/{id}/enrollments:
+    get:
+      tags: [enrollment]
+      summary: "Author's roster"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /enrollments/{id}/status:
+    put:
+      tags: [enrollment]
+      summary: "Author suspends or restores an enrollment"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /me/learning:
+    get:
+      tags: [learning]
+      summary: "Own dashboard"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /me/enrollments/{id}/content:
+    get:
+      tags: [learning]
+      summary: "Course player on the pinned edition"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /enrollments/{id}/lessons/{lessonId}/progress:
+    put:
+      tags: [learning]
+      summary: "Save lesson progress with expected revision"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /courses/{id}/exams:
+    get:
+      tags: [exams]
+      summary: "Exams of the course draft or an edition (author)"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+    post:
+      tags: [exams]
+      summary: "Add an exam to the course draft"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '201': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /exams/{id}:
+    get:
+      tags: [exams]
+      summary: "Exam content with keys (author)"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+    put:
+      tags: [exams]
+      summary: "Save exam content (course draft only)"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+    delete:
+      tags: [exams]
+      summary: "Remove an exam from the course draft"
+      responses:
+        '204': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /exams/{id}/schedule:
+    put:
+      tags: [exams]
+      summary: "Change schedule and policies (required flag only on drafts)"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /me/enrollments/{id}/exams:
+    get:
+      tags: [attempts]
+      summary: "Own exams of an enrollment"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /exams/{id}/attempts:
+    post:
+      tags: [attempts]
+      summary: "Start or resume an attempt"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /attempts/{id}:
+    get:
+      tags: [attempts]
+      summary: "Own attempt"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /attempts/{id}/answers/{questionId}:
+    put:
+      tags: [attempts]
+      summary: "Save an answer (latest save wins)"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /attempts/{id}/submit:
+    post:
+      tags: [attempts]
+      summary: "Submit (idempotent)"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /courses/{id}/grading:
+    get:
+      tags: [grading]
+      summary: "Author's grading queue"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /grading/attempts/{id}:
+    get:
+      tags: [grading]
+      summary: "Attempt with keys and grades (author)"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /grading/attempts/{id}/answers/{questionId}:
+    put:
+      tags: [grading]
+      summary: "Grade a written answer"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /grading/attempts/{id}/finalize:
+    post:
+      tags: [grading]
+      summary: "Finalize the open revision"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /grading/attempts/{id}/publish:
+    post:
+      tags: [grading]
+      summary: "Publish the finalized revision (approved author)"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /grading/attempts/{id}/regrade:
+    post:
+      tags: [grading]
+      summary: "Open a regrade draft"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /me/results:
+    get:
+      tags: [grading]
+      summary: "Own results"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /me/results/{attemptId}:
+    get:
+      tags: [grading]
+      summary: "Own published result"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /me/enrollments/{id}/completion:
+    get:
+      tags: [completion]
+      summary: "Own completion requirements"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /me/certificates:
+    get:
+      tags: [certificates]
+      summary: "Own certificates"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /courses/{id}/certificates:
+    get:
+      tags: [certificates]
+      summary: "Course certificates (author)"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /certificates/{id}/download:
+    get:
+      tags: [certificates]
+      summary: "PDF for the learner or the course author"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /certificates/{id}/revoke:
+    post:
+      tags: [certificates]
+      summary: "Revoke (author)"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /certificates/{id}/reinstate:
+    post:
+      tags: [certificates]
+      summary: "Reinstate (approved author)"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /certificates/{id}/retry:
+    post:
+      tags: [certificates]
+      summary: "Retry a failed render (author)"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /public/certificates/{token}:
+    get:
+      tags: [certificates]
+      summary: "Public verification when enabled"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /reports/courses/{id}/progress:
+    get:
+      tags: [reports]
+      summary: "Learner progress (author)"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /reports/courses/{id}/scores:
+    get:
+      tags: [reports]
+      summary: "Best published scores per exam (author)"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /reports/courses/{id}/export:
+    post:
+      tags: [reports]
+      summary: "Queue a CSV export"
+      requestBody: { required: true, content: { application/json: { schema: { type: object } } } }
+      responses:
+        '202': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /reports/courses/{id}/exports:
+    get:
+      tags: [reports]
+      summary: "Own exports of the course"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
+  /reports/exports/{id}/download:
+    get:
+      tags: [reports]
+      summary: "Download own ready export"
+      responses:
+        '200': { description: OK }
+        '4XX': { $ref: '#/components/responses/Problem' }
 components:
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
@@ -906,437 +716,3 @@ components:
         code: { type: string }
         fieldErrors: { type: object, additionalProperties: { type: string } }
         traceId: { type: string }
-    Role: { type: string, enum: [ADMINISTRATOR, TEACHER, STUDENT] }
-    AccountStatus: { type: string, enum: [ACTIVE, DISABLED] }
-    CsrfToken:
-      type: object
-      properties: { headerName: { type: string }, token: { type: string } }
-    LoginRequest:
-      type: object
-      required: [username, password]
-      properties: { username: { type: string }, password: { type: string } }
-    ChangePassword:
-      type: object
-      required: [currentPassword, newPassword]
-      properties: { currentPassword: { type: string }, newPassword: { type: string, minLength: 12, maxLength: 128 } }
-    TokenPassword:
-      type: object
-      required: [token, password]
-      properties: { token: { type: string }, password: { type: string, minLength: 12, maxLength: 128 } }
-    SetupRequest:
-      type: object
-      required: [institutionName, timezone, username, displayName, email, password]
-      properties:
-        institutionName: { type: string, maxLength: 200 }
-        timezone: { type: string, example: Asia/Dhaka }
-        username: { type: string }
-        displayName: { type: string }
-        email: { type: string }
-        password: { type: string }
-    Me:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        username: { type: string }
-        displayName: { type: string }
-        email: { type: [string, 'null'] }
-        roles: { type: array, items: { $ref: '#/components/schemas/Role' } }
-        passwordChangeRequired: { type: boolean }
-    Account:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        username: { type: string }
-        displayName: { type: string }
-        email: { type: [string, 'null'] }
-        roles: { type: array, items: { $ref: '#/components/schemas/Role' } }
-        status: { $ref: '#/components/schemas/AccountStatus' }
-        createdAt: { type: string, format: date-time }
-        revision: { type: integer }
-    AccountPage:
-      type: object
-      properties:
-        items: { type: array, items: { $ref: '#/components/schemas/Account' } }
-        page: { type: integer }
-        size: { type: integer }
-        total: { type: integer }
-    CreateAccount:
-      type: object
-      required: [username, displayName, roles, delivery]
-      properties:
-        username: { type: string, pattern: '^[A-Za-z0-9._-]{3,64}$' }
-        displayName: { type: string, maxLength: 150 }
-        email: { type: [string, 'null'], description: Optional for students; required for staff and invitations }
-        roles: { type: array, items: { $ref: '#/components/schemas/Role' } }
-        delivery: { type: string, enum: [INVITATION, TEMPORARY_PASSWORD] }
-    CreatedAccount:
-      type: object
-      properties:
-        account: { $ref: '#/components/schemas/Account' }
-        temporaryCredential: { oneOf: [{ $ref: '#/components/schemas/TemporaryCredential' }, { type: 'null' }] }
-        invitationExpiresAt: { type: [string, 'null'], format: date-time }
-    UpdateAccount:
-      type: object
-      required: [displayName, roles, expectedRevision]
-      properties:
-        displayName: { type: string }
-        email: { type: [string, 'null'] }
-        roles: { type: array, items: { $ref: '#/components/schemas/Role' } }
-        expectedRevision: { type: integer }
-    TemporaryCredential:
-      type: object
-      properties:
-        username: { type: string }
-        temporaryPassword: { type: string }
-        expiresAt: { type: string, format: date-time }
-    Institution:
-      type: object
-      properties: { name: { type: string }, timezone: { type: string }, logoAssetId: { type: [string, 'null'], format: uuid }, certificateVerification: { type: boolean }, verificationShowsStudent: { type: boolean }, revision: { type: integer } }
-    UpdateInstitution:
-      type: object
-      required: [name, timezone, certificateVerification, verificationShowsStudent, expectedRevision]
-      properties: { name: { type: string }, timezone: { type: string }, logoAssetId: { type: [string, 'null'], format: uuid }, certificateVerification: { type: boolean }, verificationShowsStudent: { type: boolean }, expectedRevision: { type: integer } }
-    AssetPurpose: { type: string, enum: [VIDEO, DOCUMENT, BRANDING_IMAGE] }
-    Asset:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        purpose: { $ref: '#/components/schemas/AssetPurpose' }
-        filename: { type: string }
-        contentType: { type: string }
-        sizeBytes: { type: integer }
-        durationSeconds: { type: [integer, 'null'] }
-    Notification:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        type: { type: string }
-        title: { type: string }
-        body: { type: string }
-        link: { type: [string, 'null'] }
-        createdAt: { type: string, format: date-time }
-        readAt: { type: [string, 'null'], format: date-time }
-    NotificationPage:
-      type: object
-      properties:
-        items: { type: array, items: { $ref: '#/components/schemas/Notification' } }
-        page: { type: integer }
-        size: { type: integer }
-        total: { type: integer }
-    FailedJob:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        type: { type: string }
-        aggregateId: { type: [string, 'null'], format: uuid }
-        attempts: { type: integer }
-        lastError: { type: [string, 'null'] }
-        failedAt: { type: string, format: date-time }
-    FailedJobPage:
-      type: object
-      properties:
-        items: { type: array, items: { $ref: '#/components/schemas/FailedJob' } }
-        page: { type: integer }
-        size: { type: integer }
-        total: { type: integer }
-    CourseSummary:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        title: { type: string }
-        status: { type: string, enum: [ACTIVE, ARCHIVED] }
-        latestEdition: { type: [integer, 'null'] }
-        draftRevision: { type: [integer, 'null'] }
-        updatedAt: { type: string, format: date-time }
-    CourseSummaryPage:
-      type: object
-      properties:
-        items: { type: array, items: { $ref: '#/components/schemas/CourseSummary' } }
-        page: { type: integer }
-        size: { type: integer }
-        total: { type: integer }
-    CourseDetail:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        title: { type: string }
-        status: { type: string, enum: [ACTIVE, ARCHIVED] }
-        teachers: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, displayName: { type: string } } } }
-        editions: { type: array, items: { type: object, properties: { versionId: { type: string, format: uuid }, edition: { type: integer }, title: { type: string }, publishedAt: { type: string, format: date-time } } } }
-        draft: { oneOf: [{ type: 'null' }, { type: object, properties: { versionId: { type: string, format: uuid }, revision: { type: integer }, basedOnEdition: { type: [integer, 'null'] } } }] }
-    LessonVideo:
-      type: object
-      properties:
-        assetId: { type: [string, 'null'], format: uuid }
-        provider: { type: [string, 'null'], enum: [YOUTUBE, VIMEO, null] }
-        providerRef: { type: [string, 'null'] }
-    CourseLesson:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        title: { type: string }
-        bodyHtml: { type: string, description: Sanitized allowlisted HTML }
-        video: { oneOf: [{ $ref: '#/components/schemas/LessonVideo' }, { type: 'null' }] }
-        resourceAssetIds: { type: array, items: { type: string, format: uuid } }
-        required: { type: boolean }
-    CourseSection:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        title: { type: string }
-        lessons: { type: array, items: { $ref: '#/components/schemas/CourseLesson' } }
-    Draft:
-      type: object
-      properties:
-        versionId: { type: string, format: uuid }
-        courseId: { type: string, format: uuid }
-        revision: { type: integer }
-        title: { type: string }
-        description: { type: string }
-        sections: { type: array, items: { $ref: '#/components/schemas/CourseSection' } }
-        requiredExamVersionIds: { type: array, items: { type: string, format: uuid } }
-    DraftInput:
-      type: object
-      required: [expectedRevision, title, sections]
-      properties:
-        expectedRevision: { type: integer }
-        title: { type: string, maxLength: 200 }
-        description: { type: string, maxLength: 5000 }
-        sections:
-          type: array
-          maxItems: 100
-          items:
-            type: object
-            properties:
-              id: { type: [string, 'null'], format: uuid }
-              title: { type: string }
-              lessons:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id: { type: [string, 'null'], format: uuid }
-                    title: { type: string }
-                    bodyHtml: { type: string }
-                    videoAssetId: { type: [string, 'null'], format: uuid }
-                    videoProvider: { type: [string, 'null'], enum: [YOUTUBE, VIMEO, null] }
-                    videoRef: { type: [string, 'null'], description: Provider video ID, never a URL }
-                    resourceAssetIds: { type: array, items: { type: string, format: uuid } }
-                    required: { type: boolean }
-        requiredExamVersionIds: { type: array, items: { type: string, format: uuid }, description: Published editions of this course's exams }
-    PublishedCourse:
-      type: object
-      properties:
-        versionId: { type: string, format: uuid }
-        courseId: { type: string, format: uuid }
-        edition: { type: integer }
-        title: { type: string }
-        description: { type: string }
-        publishedAt: { type: string, format: date-time }
-        archived: { type: boolean }
-        sections: { type: array, items: { $ref: '#/components/schemas/CourseSection' } }
-    CoursePreview:
-      type: object
-      properties:
-        versionId: { type: string, format: uuid }
-        courseId: { type: string, format: uuid }
-        edition: { type: [integer, 'null'] }
-        title: { type: string }
-        description: { type: string }
-        sections: { type: array, items: { $ref: '#/components/schemas/CourseSection' } }
-    ClassSummary:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        name: { type: string }
-        status: { type: string, enum: [DRAFT, ACTIVE, ARCHIVED] }
-        courseTitle: { type: string }
-        edition: { type: integer }
-        startsAt: { type: [string, 'null'], format: date-time }
-        endsAt: { type: [string, 'null'], format: date-time }
-    ClassSummaryPage:
-      type: object
-      properties:
-        items: { type: array, items: { $ref: '#/components/schemas/ClassSummary' } }
-        page: { type: integer }
-        size: { type: integer }
-        total: { type: integer }
-    ClassDetail:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        name: { type: string }
-        status: { type: string, enum: [DRAFT, ACTIVE, ARCHIVED] }
-        courseId: { type: string, format: uuid }
-        courseVersionId: { type: string, format: uuid }
-        courseTitle: { type: string }
-        edition: { type: integer }
-        startsAt: { type: [string, 'null'], format: date-time }
-        endsAt: { type: [string, 'null'], format: date-time }
-        teachers: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, displayName: { type: string } } } }
-        revision: { type: integer }
-    RosterRow:
-      type: object
-      properties:
-        enrollmentId: { type: string, format: uuid }
-        studentId: { type: string, format: uuid }
-        username: { type: string }
-        displayName: { type: string }
-        status: { type: string, enum: [ACTIVE, SUSPENDED, WITHDRAWN] }
-        enrolledAt: { type: string, format: date-time }
-    RosterPage:
-      type: object
-      properties:
-        items: { type: array, items: { $ref: '#/components/schemas/RosterRow' } }
-        page: { type: integer }
-        size: { type: integer }
-        total: { type: integer }
-    RosterImportPreview:
-      type: object
-      properties:
-        rows:
-          type: array
-          items:
-            type: object
-            properties:
-              line: { type: integer }
-              username: { type: string }
-              displayName: { type: string }
-              email: { type: [string, 'null'] }
-              outcome: { type: string, enum: [NEW_ACCOUNT, ENROLL_EXISTING, INVALID] }
-              errors: { type: array, items: { type: string } }
-        newAccounts: { type: integer }
-        existingStudents: { type: integer }
-        invalidRows: { type: integer }
-        digest: { type: string }
-    LessonSummary:
-      type: object
-      properties:
-        required: { type: integer }
-        completed: { type: integer }
-        lastActivityAt: { type: [string, 'null'], format: date-time }
-    LessonProgress:
-      type: object
-      properties:
-        lessonId: { type: string, format: uuid }
-        completed: { type: boolean }
-        completedAt: { type: [string, 'null'], format: date-time }
-        resumeSeconds: { type: integer }
-        revision: { type: integer }
-        lastActivityAt: { type: string, format: date-time }
-    QuestionType: { type: string, enum: [SINGLE_CHOICE, MULTIPLE_SELECT, TRUE_FALSE, WRITTEN] }
-    ExamSummary:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        title: { type: string }
-        latestEdition: { type: [integer, 'null'] }
-        latestVersionId: { type: [string, 'null'], format: uuid }
-        draftRevision: { type: [integer, 'null'] }
-    ExamDetail:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        courseId: { type: string, format: uuid }
-        title: { type: string }
-        editions: { type: array, items: { type: object, properties: { versionId: { type: string, format: uuid }, edition: { type: integer }, title: { type: string }, publishedAt: { type: string, format: date-time } } } }
-        draft: { oneOf: [{ type: 'null' }, { type: object, properties: { versionId: { type: string, format: uuid }, revision: { type: integer } } }] }
-    AuthorQuestion:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        type: { $ref: '#/components/schemas/QuestionType' }
-        prompt: { type: string, description: Plain text }
-        points: { type: number }
-        explanation: { type: string }
-        gradingNotes: { type: string }
-        options: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, label: { type: string }, correct: { type: boolean } } } }
-    ExamContent:
-      type: object
-      properties:
-        versionId: { type: string, format: uuid }
-        examId: { type: string, format: uuid }
-        edition: { type: [integer, 'null'] }
-        revision: { type: integer }
-        title: { type: string }
-        instructions: { type: string }
-        passPercent: { type: number }
-        questions: { type: array, items: { $ref: '#/components/schemas/AuthorQuestion' } }
-    ExamDraftInput:
-      type: object
-      required: [expectedRevision, title, questions]
-      properties:
-        expectedRevision: { type: integer }
-        title: { type: string }
-        instructions: { type: string }
-        passPercent: { type: number, minimum: 0, maximum: 100 }
-        questions: { type: array, maxItems: 100, items: { $ref: '#/components/schemas/AuthorQuestion' } }
-    ScheduleInput:
-      type: object
-      properties:
-        opensAt: { type: [string, 'null'], format: date-time }
-        closesAt: { type: [string, 'null'], format: date-time }
-        durationMinutes: { type: [integer, 'null'], minimum: 1, maximum: 240, description: Null means untimed, which requires closesAt }
-        maxAttempts: { type: integer, minimum: 1, maximum: 10, default: 1 }
-        resultPolicy: { type: [string, 'null'], enum: [AUTO_PUBLISH, TEACHER_PUBLISH, null] }
-        feedbackPolicy: { type: [string, 'null'], enum: [SCORE_AND_COMMENTS, AFTER_CLOSE, AFTER_SUBMISSION, null] }
-    ExamAssignment:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        classId: { type: string, format: uuid }
-        examVersionId: { type: string, format: uuid }
-        examTitle: { type: string }
-        edition: { type: integer }
-        questionCount: { type: integer }
-        maxPoints: { type: number }
-        mixed: { type: boolean }
-        required: { type: boolean }
-        schedule: { $ref: '#/components/schemas/ScheduleInput' }
-        revision: { type: integer }
-    StudentExam:
-      type: object
-      properties:
-        assignmentId: { type: string, format: uuid }
-        title: { type: string }
-        required: { type: boolean }
-        questionCount: { type: integer }
-        maxPoints: { type: number }
-        opensAt: { type: [string, 'null'], format: date-time }
-        closesAt: { type: [string, 'null'], format: date-time }
-        durationMinutes: { type: [integer, 'null'] }
-        maxAttempts: { type: integer }
-        attemptsUsed: { type: integer }
-        activeAttemptId: { type: [string, 'null'], format: uuid }
-        canStart: { type: boolean }
-        attempts: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, attemptNumber: { type: integer }, status: { type: string }, finalizedAt: { type: [string, 'null'], format: date-time } } } }
-    AttemptView:
-      type: object
-      description: Student-safe; excludes keys, explanations, grading notes and unpublished results
-      properties:
-        id: { type: string, format: uuid }
-        assignmentId: { type: string, format: uuid }
-        enrollmentId: { type: string, format: uuid }
-        examTitle: { type: string }
-        instructions: { type: string }
-        attemptNumber: { type: integer }
-        maxAttempts: { type: integer }
-        status: { type: string, enum: [IN_PROGRESS, SUBMITTED, AWAITING_GRADING, GRADED] }
-        startedAt: { type: string, format: date-time }
-        expiresAt: { type: string, format: date-time }
-        serverNow: { type: string, format: date-time }
-        finalizedAt: { type: [string, 'null'], format: date-time }
-        questions: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, position: { type: integer }, type: { $ref: '#/components/schemas/QuestionType' }, prompt: { type: string }, points: { type: number }, options: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, label: { type: string } } } } } } }
-        answers: { type: array, items: { type: object, properties: { questionId: { type: string, format: uuid }, selectedOptionIds: { type: array, items: { type: string, format: uuid } }, writtenText: { type: [string, 'null'] }, revision: { type: integer }, savedAt: { type: string, format: date-time } } } }
-    Certificate:
-      type: object
-      properties:
-        id: { type: string, format: uuid }
-        studentName: { type: string }
-        courseTitle: { type: string }
-        edition: { type: integer }
-        completedOn: { type: string, format: date }
-        status: { type: string, enum: [PENDING_RENDER, ISSUED, RENDER_FAILED, REVOKED] }
-        issuedAt: { type: [string, 'null'], format: date-time }
-        renderError: { type: [string, 'null'] }
-        revokedReason: { type: [string, 'null'] }

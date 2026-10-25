@@ -1,7 +1,5 @@
 package com.saasresearcher.learning.media;
 
-import static com.saasresearcher.learning.support.ClassFixtures.activeClass;
-import static com.saasresearcher.learning.support.ClassFixtures.enroll;
 import static com.saasresearcher.learning.support.CourseFixtures.PDF;
 import static com.saasresearcher.learning.support.CourseFixtures.lesson;
 import static com.saasresearcher.learning.support.CourseFixtures.publishedCourse;
@@ -12,6 +10,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.saasresearcher.learning.media.api.AssetStore;
 import com.saasresearcher.learning.media.api.UploadSource;
 import com.saasresearcher.learning.support.ApiClient;
+import com.saasresearcher.learning.support.EnrollmentFixtures;
 import com.saasresearcher.learning.support.ApiClient.ApiResponse;
 import com.saasresearcher.learning.support.GeneratedInputStream;
 import com.saasresearcher.learning.support.PostgresIntegrationTest;
@@ -54,7 +53,7 @@ class S3MediaIT extends PostgresIntegrationTest {
             .withCopyToContainer(Transferable.of(CONFIG), "/etc/s3.json")
             .withCommand("server", "-s3", "-s3.port=8333", "-s3.config=/etc/s3.json", "-dir=/data", "-ip.bind=0.0.0.0")
             .withExposedPorts(8333)
-            .waitingFor(Wait.forHttp("/").forPort(8333).forStatusCode(403));
+            .waitingFor(Wait.forHttp("/").forPort(8333).forStatusCode(403).withStartupTimeout(java.time.Duration.ofMinutes(3)));
 
     private static S3Client admin() {
         return S3Client.builder().region(Region.US_EAST_1).endpointOverride(endpoint()).forcePathStyle(true)
@@ -84,13 +83,13 @@ class S3MediaIT extends PostgresIntegrationTest {
     private AssetStore store;
 
     private final HttpClient http = HttpClient.newHttpClient();
-    private ApiClient admin;
+    private TestUser owner;
     private TestUser teacher;
 
     @BeforeEach
     void users() {
-        admin = setupAdministrator();
-        teacher = createUser(admin, "s3.teacher", "s3@example.test", "TEACHER");
+        owner = setupOwner();
+        teacher = approvedTeacher("s3.teacher", owner);
     }
 
     @Test
@@ -153,17 +152,16 @@ class S3MediaIT extends PostgresIntegrationTest {
     }
 
     @Test
-    void withdrawnStudentsGetNoNewUrls() {
+    void withdrawnLearnersGetNoNewUrls() {
         String pdf = uploadPdf(teacher.session(), "worksheet.pdf");
         Map<String, Object> withFile = lesson("Worksheet", "", true);
         withFile.put("resourceAssetIds", List.of(pdf));
         JsonNode course = publishedCourse(teacher.session(), "S3 course", List.of(withFile));
-        UUID classId = activeClass(teacher.session(), UUID.fromString(course.path("versionId").asString()), "S3 class");
-        TestUser student = createUser(admin, "s3.student", null, "STUDENT");
-        UUID enrollmentId = enroll(teacher.session(), classId, student.username());
+        TestUser student = registerStudent("s3.student");
+        UUID enrollmentId = EnrollmentFixtures.enroll(teacher.session(), student.session(), UUID.fromString(course.path("courseId").asString()));
         assertThat(student.session().get("/media/" + pdf + "/content").status()).isEqualTo(302);
 
-        teacher.session().put("/classes/" + classId + "/enrollments/" + enrollmentId, Map.of("status", "WITHDRAWN")).expect(200);
+        student.session().post("/me/enrollments/" + enrollmentId + "/withdraw", null).expect(204);
         assertThat(student.session().get("/media/" + pdf + "/content").status()).isEqualTo(404);
     }
 

@@ -8,7 +8,6 @@ import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Component;
 
-/** SMTP delivery via spring.mail.*; unconfigured when the mail host is unset or blank. */
 @Component
 public class SmtpEmailSender implements EmailSender {
 

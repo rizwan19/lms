@@ -1,24 +1,26 @@
 package com.saasresearcher.learning.reporting.infra;
 
-import com.saasresearcher.learning.classrooms.api.TeachingAccess;
 import com.saasresearcher.learning.common.Actor;
 import com.saasresearcher.learning.common.ApiException;
 import com.saasresearcher.learning.common.PageQuery;
 import com.saasresearcher.learning.identity.api.IdentityAccess;
-import com.saasresearcher.learning.institution.api.InstitutionSettings;
 import com.saasresearcher.learning.media.api.AssetStore;
 import com.saasresearcher.learning.media.api.UploadSource;
 import com.saasresearcher.learning.notifications.api.JobHandler;
 import com.saasresearcher.learning.notifications.api.JobRequest;
 import com.saasresearcher.learning.notifications.api.NotificationRequest;
 import com.saasresearcher.learning.notifications.api.Notifications;
+import com.saasresearcher.learning.reporting.api.ExportStatus;
+import com.saasresearcher.learning.reporting.api.LearnerProgressRow;
+import com.saasresearcher.learning.reporting.api.LearnerScoreRow.Score;
+import com.saasresearcher.learning.reporting.api.LearnerScoreRow;
 import com.saasresearcher.learning.reporting.api.ReportType;
-import com.saasresearcher.learning.reporting.api.StudentProgressRow;
-import com.saasresearcher.learning.reporting.api.StudentScoreRow.Score;
-import com.saasresearcher.learning.reporting.api.StudentScoreRow;
-import com.saasresearcher.learning.reporting.entity.ExportRow;
-import com.saasresearcher.learning.reporting.repository.ExportRepository;
-import com.saasresearcher.learning.reporting.service.ClassReports;
+import com.saasresearcher.learning.reporting.entity.ReportExport;
+import com.saasresearcher.learning.reporting.repository.CourseReportQueries.ExamColumn;
+import com.saasresearcher.learning.reporting.repository.ReportExportRepository;
+import com.saasresearcher.learning.reporting.service.CourseReports.ScorePage;
+import com.saasresearcher.learning.reporting.service.CourseReports;
+import com.saasresearcher.learning.workspace.api.WorkspaceService;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.StringWriter;
@@ -36,32 +38,30 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Generates a class CSV into private storage for the requesting staff member only. Access is checked again here and
- * at download. Columns never include credentials, answer keys or unpublished grades; cells are formula-safe, and
- * times are given in UTC and in the institution timezone.
+ * Generates a course CSV into private storage for the requesting author only. Authorship and account status are checked
+ * again here and at download. Columns never include credentials, answer keys or unpublished grades; cells are formula-safe, and
+ * times are given in UTC and in the workspace timezone.
  */
 @Component
 public class ReportExportHandler implements JobHandler {
 
     private static final int BATCH = PageQuery.MAX_SIZE;
 
-    private final ExportRepository exports;
-    private final ClassReports reports;
-    private final TeachingAccess teaching;
+    private final ReportExportRepository exports;
+    private final CourseReports reports;
     private final IdentityAccess identity;
-    private final InstitutionSettings institution;
+    private final WorkspaceService workspace;
     private final AssetStore store;
     private final Notifications notifications;
     private final TransactionTemplate transactions;
     private final Clock clock;
 
-    ReportExportHandler(ExportRepository exports, ClassReports reports, TeachingAccess teaching, IdentityAccess identity,
-            InstitutionSettings institution, AssetStore store, Notifications notifications, TransactionTemplate transactions, Clock clock) {
+    ReportExportHandler(ReportExportRepository exports, CourseReports reports, IdentityAccess identity, WorkspaceService workspace, AssetStore store,
+            Notifications notifications, TransactionTemplate transactions, Clock clock) {
         this.exports = exports;
         this.reports = reports;
-        this.teaching = teaching;
         this.identity = identity;
-        this.institution = institution;
+        this.workspace = workspace;
         this.store = store;
         this.notifications = notifications;
         this.transactions = transactions;
@@ -70,46 +70,50 @@ public class ReportExportHandler implements JobHandler {
 
     @Override
     public String type() {
-        return ClassReports.EXPORT_JOB;
+        return CourseReports.EXPORT_JOB;
     }
 
     @Override
     public void handle(JobRequest job) throws IOException {
-        ExportRow export = exports.find(job.aggregateId()).orElseThrow();
-        if (!export.status().equals("PENDING")) {
+        ReportExport export = exports.findById(job.aggregateId()).orElseThrow();
+        if (export.getStatus() != ExportStatus.PENDING) {
             return;
         }
         if (!stillAllowed(export)) {
-            exports.complete(export.id(), "FAILED", clock.instant());
+            transactions.executeWithoutResult(status -> complete(export, ExportStatus.FAILED));
             return;
         }
-        ZoneId zone = institution.get().timezone();
-        String csv = transactions.execute(status -> export.type() == ReportType.PROGRESS ? progressCsv(export, zone) : scoresCsv(export));
-        store.put(new UploadSource(export.storageKey(), new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8))));
+        ZoneId zone = workspace.getWorkspaceData().timezone();
+        String csv = transactions.execute(status -> export.getType() == ReportType.PROGRESS ? progressCsv(export, zone) : scoresCsv(export));
+        store.put(new UploadSource(export.getStorageKey(), new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8))));
         transactions.executeWithoutResult(status -> {
-            exports.complete(export.id(), "READY", clock.instant());
-            notifications.notify(new NotificationRequest(export.requestedBy(), "report.ready", "Your class report is ready",
-                    export.type().name().toLowerCase() + " report", "/teacher/classes/" + export.classId() + "/reports", "report-ready:" + export.id()));
+            complete(export, ExportStatus.READY);
+            notifications.notify(new NotificationRequest(export.getRequestedBy(), "report.ready", "Your course report is ready",
+                    export.getType().name().toLowerCase() + " report", "/courses/" + export.getCourseId() + "/reports", "report-ready:" + export.getId()));
         });
     }
 
-    boolean stillAllowed(ExportRow export) {
+    private void complete(ReportExport export, ExportStatus status) {
+        exports.findById(export.getId()).orElseThrow().complete(status, clock.instant());
+    }
+
+    boolean stillAllowed(ReportExport export) {
         try {
-            Actor requester = identity.requireActive(export.requestedBy());
-            teaching.requireClassTeacher(export.classId(), requester);
+            Actor requester = identity.requireActive(export.getRequestedBy());
+            reports.requireRequesterStillAuthor(export, requester);
             return true;
         } catch (ApiException revoked) {
             return false;
         }
     }
 
-    private String progressCsv(ExportRow export, ZoneId zone) {
-        List<String> header = List.of("student_name", "username", "enrollment_status", "required_lessons", "completed_required_lessons", "lesson_percent",
+    private String progressCsv(ReportExport export, ZoneId zone) {
+        List<String> header = List.of("learner_name", "username", "enrollment_status", "required_lessons", "completed_required_lessons", "lesson_percent",
                 "required_exams", "passed_required_exams", "pending_grading", "last_activity_utc", "last_activity_" + zone.getId(), "inactive", "completion");
         return write(header, printer -> {
             for (int page = 0; ; page++) {
-                List<StudentProgressRow> rows = reports.progressRows(export.classId(), new PageQuery(page, BATCH));
-                for (StudentProgressRow row : rows) {
+                List<LearnerProgressRow> rows = reports.progressRows(export.getCourseId(), export.getCourseVersionId(), new PageQuery(page, BATCH));
+                for (LearnerProgressRow row : rows) {
                     printer.printRecord(cells(row.displayName(), row.username(), row.enrollmentStatus(), row.requiredLessons(),
                             row.completedRequiredLessons(), row.lessonPercent(), row.requiredExams(), row.passedRequiredExams(), row.pendingGrading(),
                             row.lastActivityAt(), local(row.lastActivityAt(), zone), row.inactive(), row.completionStatus()));
@@ -121,19 +125,18 @@ public class ReportExportHandler implements JobHandler {
         });
     }
 
-    private String scoresCsv(ExportRow export) {
-        List<String> header = new ArrayList<>(List.of("student_name", "username"));
-        List<StudentScoreRow> first = reports.scoreRows(export.classId(), new PageQuery(0, BATCH));
-        if (!first.isEmpty()) {
-            for (Score score : first.getFirst().scores()) {
-                String name = score.examTitle() + (score.required() ? " (required)" : " (practice)");
-                header.addAll(List.of(name + " best published", name + " maximum", name + " passed", name + " published revision", name + " pending"));
-            }
+    private String scoresCsv(ReportExport export) {
+        List<String> header = new ArrayList<>(List.of("learner_name", "username"));
+        ScorePage first = reports.scoreRows(export.getCourseId(), export.getCourseVersionId(), new PageQuery(0, BATCH));
+        for (ExamColumn exam : first.exams()) {
+            String name = exam.getTitle() + (exam.getRequired() ? " (required)" : " (practice)");
+            header.addAll(List.of(name + " best published", name + " maximum", name + " passed", name + " published revision", name + " pending"));
         }
         return write(header, printer -> {
             for (int page = 0; ; page++) {
-                List<StudentScoreRow> rows = page == 0 ? first : reports.scoreRows(export.classId(), new PageQuery(page, BATCH));
-                for (StudentScoreRow row : rows) {
+                List<LearnerScoreRow> rows = page == 0 ? first.rows()
+                        : reports.scoreRows(export.getCourseId(), export.getCourseVersionId(), new PageQuery(page, BATCH)).rows();
+                for (LearnerScoreRow row : rows) {
                     List<Object> values = new ArrayList<>(List.of(row.displayName(), row.username()));
                     for (Score score : row.scores()) {
                         values.addAll(Arrays.asList(score.bestEarned(), score.maximum(), score.passed(), score.publishedRevisionId(),

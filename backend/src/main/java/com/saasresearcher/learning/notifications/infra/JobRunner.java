@@ -2,7 +2,7 @@ package com.saasresearcher.learning.notifications.infra;
 
 import com.saasresearcher.learning.notifications.api.JobHandler;
 import com.saasresearcher.learning.notifications.config.JobsProperties;
-import com.saasresearcher.learning.notifications.entity.ClaimedJob;
+import com.saasresearcher.learning.notifications.dto.ClaimedJob;
 import com.saasresearcher.learning.notifications.repository.JobStore;
 import com.saasresearcher.learning.operations.api.MaintenanceMode;
 import java.util.List;

@@ -1,25 +1,24 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router'
 import { api } from '../../shared/api'
-import type { Me } from '../../shared/types'
+import type { Profile, RegistrationReceipt } from '../../shared/types'
 import { ErrorMessage, Field, fieldErrors } from '../../shared/ui'
 import { TimezoneSelect } from '../settings/TimezoneSelect'
 
-type SetupForm = Record<'institutionName' | 'timezone' | 'username' | 'displayName' | 'email' | 'password', string>
+type SetupForm = Record<'workspaceName' | 'timezone' | 'username' | 'displayName' | 'email' | 'password', string>
 
-/** First-run installation setup; the backend disables it once an administrator exists. */
 export function SetupPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const setup = useMutation({
     mutationFn: async (form: SetupForm) => {
-      await api.post<Me>('/setup', form)
-      return api.post<Me>('/auth/login', { username: form.username, password: form.password })
+      await api.post<RegistrationReceipt>('/setup', form)
+      return api.post<Profile>('/auth/login', { username: form.username, password: form.password })
     },
     onSuccess: async (account) => {
       await api.get('/auth/csrf')
       queryClient.setQueryData(['me'], account)
-      await queryClient.invalidateQueries({ queryKey: ['institution'] })
+      await queryClient.invalidateQueries({ queryKey: ['workspace'] })
       navigate('/')
     },
   })
@@ -34,8 +33,8 @@ export function SetupPage() {
           setup.mutate(Object.fromEntries(new FormData(event.currentTarget)) as SetupForm)
         }}
       >
-        <Field label="Institution name" name="institutionName" errors={errors}>
-          <input id="institutionName" name="institutionName" required maxLength={200} />
+        <Field label="Workspace name" name="workspaceName" errors={errors}>
+          <input id="workspaceName" name="workspaceName" required maxLength={200} />
         </Field>
         <Field label="Timezone" name="timezone" errors={errors}>
           <TimezoneSelect id="timezone" name="timezone" />

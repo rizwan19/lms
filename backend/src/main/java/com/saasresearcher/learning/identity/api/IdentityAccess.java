@@ -8,12 +8,11 @@ import java.util.UUID;
 
 public interface IdentityAccess {
 
-    /** Returns the actor for an active account; unknown or disabled accounts are rejected. */
     Actor requireActive(UUID userId);
 
-    Map<UUID, AccountSummary> summaries(Collection<UUID> userIds);
+    Map<UUID, AccountSummary> lockShared(Collection<UUID> userIds);
 
-    Optional<AccountSummary> findByUsername(String username);
+    Map<UUID, AccountSummary> summaries(Collection<UUID> userIds);
 
     Optional<AccountSummary> findByEmail(String email);
 }

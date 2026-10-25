@@ -38,6 +38,7 @@ explicitly versioned libraries are pinned in `backend/build.gradle.kts` and lock
 | Noto Sans font (bundled) | 2022 release | SIL OFL 1.1 |
 | AWS SDK for Java v2 S3 (BOM pinned) | 2.56.0 | Apache-2.0 |
 | ArchUnit (pinned) | 1.5.1 | Apache-2.0 |
+| Lombok (compile-only annotation processor) | 1.18.46 | MIT |
 
 ## Frontend (exact)
 

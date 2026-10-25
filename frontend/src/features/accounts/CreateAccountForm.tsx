@@ -4,7 +4,7 @@ import type { Role } from '../../shared/types'
 import { ErrorMessage, Field, fieldErrors } from '../../shared/ui'
 import type { CreatedAccount } from './types'
 
-const ALL_ROLES: Role[] = ['STUDENT', 'TEACHER', 'ADMINISTRATOR']
+const ALL_ROLES: Role[] = ['STUDENT', 'TEACHER']
 
 export function CreateAccountForm({ isAdministrator, onCreated, onCancel }: { isAdministrator: boolean; onCreated: (created: CreatedAccount) => void; onCancel: () => void }) {
   const create = useMutation({

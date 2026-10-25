@@ -1,9 +1,8 @@
 package com.saasresearcher.learning.operations.service;
 
 import com.saasresearcher.learning.audit.api.AuditEntry;
-import com.saasresearcher.learning.audit.api.AuditLog;
+import com.saasresearcher.learning.audit.api.AuditService;
 import com.saasresearcher.learning.common.Actor;
-import com.saasresearcher.learning.common.ApiException;
 import com.saasresearcher.learning.operations.api.MaintenanceMode;
 import java.sql.Timestamp;
 import java.time.Clock;
@@ -20,12 +19,12 @@ public class MaintenanceService implements MaintenanceMode {
     private static final long CACHE_MILLIS = 1000;
 
     private final JdbcClient jdbc;
-    private final AuditLog audit;
+    private final AuditService audit;
     private final Clock clock;
     private volatile boolean active;
     private volatile long checkedAt;
 
-    MaintenanceService(JdbcClient jdbc, AuditLog audit, Clock clock) {
+    MaintenanceService(JdbcClient jdbc, AuditService audit, Clock clock) {
         this.jdbc = jdbc;
         this.audit = audit;
         this.clock = clock;
@@ -52,9 +51,7 @@ public class MaintenanceService implements MaintenanceMode {
 
     @Transactional
     public State set(boolean on, String reason, Actor actor) {
-        if (!actor.isAdministrator()) {
-            throw ApiException.accessDenied("Administrator role required");
-        }
+        actor.requireApprovedTeacher();
         jdbc.sql("update system_state set maintenance = :on, reason = :reason, updated_at = :now where id = 1")
                 .param("on", on).param("reason", reason).param("now", Timestamp.from(clock.instant())).update();
         checkedAt = 0;

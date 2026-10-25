@@ -4,9 +4,10 @@ import com.saasresearcher.learning.assessments.api.AssessmentResults.RequiredExa
 import com.saasresearcher.learning.assessments.api.AssessmentResults;
 import com.saasresearcher.learning.assessments.api.PublishedResultListener;
 import com.saasresearcher.learning.audit.api.AuditEntry;
-import com.saasresearcher.learning.audit.api.AuditLog;
-import com.saasresearcher.learning.classrooms.api.EnrollmentAccess;
-import com.saasresearcher.learning.classrooms.api.EnrollmentView;
+import com.saasresearcher.learning.audit.api.AuditService;
+import com.saasresearcher.learning.enrollment.api.EnrollmentAccessService;
+import com.saasresearcher.learning.enrollment.api.EnrollmentView;
+import com.saasresearcher.learning.completion.entity.CourseCompletion;
 import com.saasresearcher.learning.common.ApiException;
 import com.saasresearcher.learning.completion.api.CompletionListener;
 import com.saasresearcher.learning.completion.api.CompletionService;
@@ -29,7 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
- * Course completion (spec §10): every required lesson completed and every required exam passed by a published
+ * Course completion: every required lesson of the pinned edition completed and every required exam passed by a published
  * result. Reconciliation locks the enrollment, keeps exactly one completion per enrollment and is idempotent.
  * Progress and grade publication only queue reconciliation; the job does the work.
  */
@@ -39,16 +40,16 @@ public class CompletionReconciler implements CompletionService, ProgressObserver
     public static final String JOB_TYPE = "completion.reconcile";
 
     private final CompletionRepository completions;
-    private final EnrollmentAccess enrollments;
+    private final EnrollmentAccessService enrollments;
     private final LearningProgress learning;
     private final AssessmentResults assessments;
     private final DurableJobs jobs;
     private final ObjectProvider<CompletionListener> listeners;
-    private final AuditLog audit;
+    private final AuditService audit;
     private final Clock clock;
 
-    CompletionReconciler(CompletionRepository completions, EnrollmentAccess enrollments, LearningProgress learning, AssessmentResults assessments,
-            DurableJobs jobs, ObjectProvider<CompletionListener> listeners, AuditLog audit, Clock clock) {
+    CompletionReconciler(CompletionRepository completions, EnrollmentAccessService enrollments, LearningProgress learning, AssessmentResults assessments,
+                         DurableJobs jobs, ObjectProvider<CompletionListener> listeners, AuditService audit, Clock clock) {
         this.completions = completions;
         this.enrollments = enrollments;
         this.learning = learning;
@@ -76,49 +77,49 @@ public class CompletionReconciler implements CompletionService, ProgressObserver
         LessonSummary lessons = learning.summary(enrollmentId);
         List<RequiredExamResult> exams = assessments.requiredResults(enrollmentId);
         boolean eligible = lessons.completed() >= lessons.required() && exams.stream().allMatch(RequiredExamResult::publishedPass);
-        Optional<CompletionSnapshot> existing = completions.byEnrollment(enrollmentId);
+        Optional<CourseCompletion> existing = completions.findByEnrollmentId(enrollmentId);
         Instant now = clock.instant();
 
         if (eligible && existing.isEmpty()) {
-            CompletionSnapshot created = new CompletionSnapshot(UUID.randomUUID(), enrollmentId, enrollment.studentId(), enrollment.classId(),
-                    enrollment.courseVersionId(), CompletionStatus.ACHIEVED, now);
-            completions.insert(created);
+            CourseCompletion created = completions.saveAndFlush(new CourseCompletion(enrollmentId, enrollment.learnerId(), enrollment.courseId(),
+                    enrollment.courseVersionId(), now));
             enrollments.lockLearning(enrollmentId);
             audit.record(AuditEntry.success(null, "completion.achieved", "enrollment", enrollmentId));
-            listeners.forEach(listener -> listener.achieved(created.id()));
-            return new CompletionState(enrollmentId, CompletionStatus.ACHIEVED, created.id(), lessons, exams);
+            listeners.forEach(listener -> listener.achieved(created.getId()));
+            return new CompletionState(enrollmentId, CompletionStatus.ACHIEVED, created.getId(), lessons, exams);
         }
         if (existing.isEmpty()) {
             return new CompletionState(enrollmentId, CompletionStatus.NOT_ELIGIBLE, null, lessons, exams);
         }
-        CompletionSnapshot completion = existing.get();
+        CourseCompletion completion = existing.get();
         CompletionStatus target = eligible ? CompletionStatus.ACHIEVED : CompletionStatus.INVALIDATED;
-        if (completion.status() != target) {
-            completions.setStatus(completion.id(), target, now);
+        if (completion.getStatus() != target) {
+            completion.setStatus(target, now);
+            completions.flush();
             audit.record(AuditEntry.success(null, eligible ? "completion.restored" : "completion.invalidated", "enrollment", enrollmentId));
             listeners.forEach(listener -> {
                 if (eligible) {
-                    listener.achieved(completion.id());
+                    listener.achieved(completion.getId());
                 } else {
-                    listener.invalidated(completion.id());
+                    listener.invalidated(completion.getId());
                 }
             });
         }
-        return new CompletionState(enrollmentId, target, completion.id(), lessons, exams);
+        return new CompletionState(enrollmentId, target, completion.getId(), lessons, exams);
     }
 
     @Override
     @Transactional(readOnly = true)
     public CompletionSnapshot get(UUID completionId) {
-        return completions.find(completionId).orElseThrow(ApiException::notFound);
+        return completions.findById(completionId).map(CourseCompletion::toSnapshot).orElseThrow(ApiException::notFound);
     }
 
     @Transactional(readOnly = true)
     public CompletionState state(UUID enrollmentId) {
         LessonSummary lessons = learning.summary(enrollmentId);
         List<RequiredExamResult> exams = assessments.requiredResults(enrollmentId);
-        return completions.byEnrollment(enrollmentId)
-                .map(completion -> new CompletionState(enrollmentId, completion.status(), completion.id(), lessons, exams))
+        return completions.findByEnrollmentId(enrollmentId)
+                .map(completion -> new CompletionState(enrollmentId, completion.getStatus(), completion.getId(), lessons, exams))
                 .orElse(new CompletionState(enrollmentId, CompletionStatus.NOT_ELIGIBLE, null, lessons, exams));
     }
 

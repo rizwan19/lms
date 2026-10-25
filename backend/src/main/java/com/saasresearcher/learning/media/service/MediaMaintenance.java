@@ -1,6 +1,7 @@
 package com.saasresearcher.learning.media.service;
 
 import com.saasresearcher.learning.media.api.AssetReferences;
+import com.saasresearcher.learning.media.api.AssetStatus;
 import com.saasresearcher.learning.media.api.AssetStore;
 import com.saasresearcher.learning.media.config.MediaProperties;
 import com.saasresearcher.learning.media.entity.MediaAsset;
@@ -36,15 +37,15 @@ public class MediaMaintenance {
     public void sweep() throws IOException {
         Instant now = clock.instant();
         for (MediaAsset abandoned : assets.findByStatusInAndUpdatedAtBefore(
-                List.of(MediaAsset.Status.UPLOADING, MediaAsset.Status.VALIDATING), now.minus(properties.abandonedUploadAfter()))) {
+                List.of(AssetStatus.UPLOADING, AssetStatus.VALIDATING), now.minus(properties.abandonedUploadAfter()))) {
             UploadValidator.deleteQuietly(uploads.staging(abandoned));
-            store.delete(abandoned.storageKey());
+            store.delete(abandoned.getStorageKey());
             abandoned.reject("Upload abandoned", now);
             assets.save(abandoned);
         }
-        for (MediaAsset candidate : assets.findByStatusInAndUpdatedAtBefore(List.of(MediaAsset.Status.AVAILABLE), now.minus(properties.orphanAfter()))) {
-            if (references.stream().noneMatch(reference -> reference.isReferenced(candidate.id()))) {
-                store.delete(candidate.storageKey());
+        for (MediaAsset candidate : assets.findByStatusInAndUpdatedAtBefore(List.of(AssetStatus.AVAILABLE), now.minus(properties.orphanAfter()))) {
+            if (references.stream().noneMatch(reference -> reference.isReferenced(candidate.getId()))) {
+                store.delete(candidate.getStorageKey());
                 assets.delete(candidate);
             }
         }

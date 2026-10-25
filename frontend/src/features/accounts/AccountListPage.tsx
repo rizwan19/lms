@@ -9,9 +9,9 @@ import { CredentialNotice } from './CredentialNotice'
 import type { Account } from './types'
 
 export function AccountListPage() {
-  const { me, activeRole } = useSession()
+  const { me } = useSession()
   const queryClient = useQueryClient()
-  const isAdministrator = activeRole === 'ADMINISTRATOR'
+  const isAdministrator = me?.capabilities.canAdministerWorkspace ?? false
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
   const [creating, setCreating] = useState(false)
@@ -89,8 +89,8 @@ export function AccountListPage() {
                     <tr key={account.id}>
                       <td>{account.displayName}</td>
                       <td>{account.username}</td>
-                      <td>{account.roles.map((role) => role.toLowerCase()).join(', ')}</td>
-                      <td>{account.status === 'ACTIVE' ? 'Active' : 'Disabled'}</td>
+                      <td>{account.role.toLowerCase()}</td>
+                      <td>{account.status === 'ACTIVE' ? 'Active' : 'Suspended'}</td>
                       <td className="actions">
                         {account.id !== me?.id && account.status === 'ACTIVE' && (
                           <button type="button" onClick={() => reset.mutate(account)} aria-label={`Reset password for ${account.username}`}>
@@ -100,10 +100,10 @@ export function AccountListPage() {
                         {isAdministrator && account.id !== me?.id && (
                           <button
                             type="button"
-                            onClick={() => setStatus.mutate({ account, status: account.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE' })}
-                            aria-label={`${account.status === 'ACTIVE' ? 'Disable' : 'Enable'} ${account.username}`}
+                            onClick={() => setStatus.mutate({ account, status: account.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' })}
+                            aria-label={`${account.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'} ${account.username}`}
                           >
-                            {account.status === 'ACTIVE' ? 'Disable' : 'Enable'}
+                            {account.status === 'ACTIVE' ? 'Suspend' : 'Reactivate'}
                           </button>
                         )}
                       </td>

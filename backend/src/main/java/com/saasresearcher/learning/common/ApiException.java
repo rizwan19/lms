@@ -4,7 +4,6 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 
-/** Business failure rendered as an RFC 9457 problem response with a stable {@code code}. */
 public class ApiException extends RuntimeException {
 
     private final HttpStatus status;
@@ -23,13 +22,20 @@ public class ApiException extends RuntimeException {
         this(status, code, detail, Map.of());
     }
 
-    /** Unknown or unrelated resource; also used for forbidden reads to avoid exposing existence. */
     public static ApiException notFound() {
         return new ApiException(HttpStatus.NOT_FOUND, ErrorCodes.NOT_FOUND, "Resource not found");
     }
 
     public static ApiException accessDenied(String detail) {
         return new ApiException(HttpStatus.FORBIDDEN, ErrorCodes.ACCESS_DENIED, detail);
+    }
+
+    public static ApiException emailUnverified() {
+        return new ApiException(HttpStatus.FORBIDDEN, ErrorCodes.EMAIL_UNVERIFIED, "Verify your email address first");
+    }
+
+    public static ApiException teacherApprovalRequired() {
+        return new ApiException(HttpStatus.FORBIDDEN, ErrorCodes.TEACHER_APPROVAL_REQUIRED, "An approved teacher account is required");
     }
 
     public static ApiException conflict(String code, String detail) {
@@ -48,7 +54,6 @@ public class ApiException extends RuntimeException {
         return new ApiException(HttpStatus.BAD_REQUEST, code, detail);
     }
 
-    /** Adds a safe extra member to the problem body, e.g. the current state after a conflict. */
     public ApiException with(String name, Object value) {
         properties.put(name, value);
         return this;

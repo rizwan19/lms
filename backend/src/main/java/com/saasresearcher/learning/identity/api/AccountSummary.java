@@ -1,12 +1,17 @@
 package com.saasresearcher.learning.identity.api;
 
 import com.saasresearcher.learning.common.Role;
-import java.util.Set;
+import com.saasresearcher.learning.common.TeacherStatus;
 import java.util.UUID;
 
-public record AccountSummary(UUID id, String username, String displayName, String email, Set<Role> roles, AccountStatus status) {
+public record AccountSummary(UUID id, String username, String displayName, String email, Role role, AccountStatus status,
+        boolean emailVerified, TeacherStatus teacherStatus) {
 
-    public boolean isStaff() {
-        return roles.contains(Role.ADMINISTRATOR) || roles.contains(Role.TEACHER);
+    public boolean isActive() {
+        return status == AccountStatus.ACTIVE;
+    }
+
+    public boolean isActiveApprovedTeacher() {
+        return isActive() && emailVerified && role == Role.TEACHER && teacherStatus == TeacherStatus.APPROVED;
     }
 }

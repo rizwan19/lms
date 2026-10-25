@@ -6,8 +6,8 @@ import com.saasresearcher.learning.assessments.api.GradingSnapshot;
 import com.saasresearcher.learning.assessments.api.QuestionType;
 import com.saasresearcher.learning.common.Actor;
 import com.saasresearcher.learning.common.ApiException;
-import com.saasresearcher.learning.grading.entity.GradeRows.GradeRow;
-import com.saasresearcher.learning.grading.entity.GradeRows.RevisionRow;
+import com.saasresearcher.learning.grading.dto.GradeViews.GradeRow;
+import com.saasresearcher.learning.grading.dto.GradeViews.RevisionView;
 import com.saasresearcher.learning.grading.service.GradingService;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -22,8 +22,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * A student's own released results. Only published revisions are shown; pending grading appears as pending, never as
- * zero. Keys and explanations appear only when the assignment's feedback policy releases them.
+ * A learner's own released results (teachers learning use the same routes). Only published revisions are shown; pending grading appears as pending, never as
+ * zero. Keys and explanations appear only when the course exam's feedback policy releases them.
  */
 @RestController
 public class StudentResultsController {
@@ -40,7 +40,8 @@ public class StudentResultsController {
     @Transactional(readOnly = true)
     List<ResultSummary> results(Actor actor) {
         return attempts.resultsOf(actor.userId()).stream()
-                .map(result -> new ResultSummary(result.attemptId(), result.enrollmentId(), result.examTitle(), result.required(), result.attemptNumber(),
+                .map(result -> new ResultSummary(result.attemptId(), result.enrollmentId(), result.courseId(), result.examTitle(), result.required(),
+                        result.attemptNumber(),
                         result.finalizedAt(), result.publishedAt() == null ? "PENDING" : "PUBLISHED", result.publishedEarned(), result.publishedMaximum(),
                         result.publishedPassed(), result.publishedAt()))
                 .toList();
@@ -50,10 +51,10 @@ public class StudentResultsController {
     @Transactional(readOnly = true)
     ResultDetail result(@PathVariable UUID attemptId, Actor actor) {
         GradingSnapshot snapshot = attempts.snapshot(attemptId);
-        if (!snapshot.studentId().equals(actor.userId())) {
+        if (!snapshot.learnerId().equals(actor.userId())) {
             throw ApiException.notFound();
         }
-        RevisionRow published = grades.published(attemptId).orElseThrow(ApiException::notFound);
+        RevisionView published = grades.published(attemptId).orElseThrow(ApiException::notFound);
         Map<UUID, GradeRow> grade = grades.publishedGrades(published.id()).stream().collect(Collectors.toMap(GradeRow::questionId, Function.identity()));
         boolean keys = attempts.keysReleased(attemptId);
         List<QuestionResult> questions = snapshot.questions().stream().map(question -> {
@@ -68,7 +69,7 @@ public class StudentResultsController {
                 published.publishedAt(), keys, questions);
     }
 
-    record ResultSummary(UUID attemptId, UUID enrollmentId, String examTitle, boolean required, int attemptNumber, Instant finalizedAt, String state,
+    record ResultSummary(UUID attemptId, UUID enrollmentId, UUID courseId, String examTitle, boolean required, int attemptNumber, Instant finalizedAt, String state,
             BigDecimal earned, BigDecimal maximum, Boolean passed, Instant publishedAt) {
     }
 

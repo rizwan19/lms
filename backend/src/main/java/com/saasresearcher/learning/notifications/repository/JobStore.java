@@ -2,8 +2,9 @@ package com.saasresearcher.learning.notifications.repository;
 
 import com.saasresearcher.learning.notifications.api.DurableJobs;
 import com.saasresearcher.learning.notifications.api.JobRequest;
+import com.saasresearcher.learning.notifications.api.JobStatus;
 import com.saasresearcher.learning.notifications.config.JobsProperties;
-import com.saasresearcher.learning.notifications.entity.ClaimedJob;
+import com.saasresearcher.learning.notifications.dto.ClaimedJob;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -16,7 +17,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/** SQL for the background_jobs lifecycle: PENDING → RUNNING → SUCCEEDED, or back to PENDING / FAILED. */
+/** SQL for the background_jobs lifecycle ({@link JobStatus}); statuses are bound as codes. */
 @Repository
 public class JobStore implements DurableJobs {
 
@@ -36,7 +37,7 @@ public class JobStore implements DurableJobs {
         Timestamp now = Timestamp.from(clock.instant());
         return jdbc.sql("""
                 insert into background_jobs (id, type, aggregate_id, deduplication_key, payload, status, available_at, created_at, updated_at)
-                values (:id, :type, :aggregateId, :key, cast(:payload as jsonb), 'PENDING', :availableAt, :now, :now)
+                values (:id, :type, :aggregateId, :key, cast(:payload as jsonb), :pending, :availableAt, :now, :now)
                 on conflict (deduplication_key) do nothing
                 returning id
                 """)
@@ -45,6 +46,7 @@ public class JobStore implements DurableJobs {
                 .param("aggregateId", request.aggregateId())
                 .param("key", request.deduplicationKey())
                 .param("payload", request.payloadJson())
+                .param("pending", JobStatus.PENDING.code())
                 .param("availableAt", Timestamp.from(request.availableAt()))
                 .param("now", now)
                 .query(UUID.class)
@@ -61,25 +63,29 @@ public class JobStore implements DurableJobs {
         Instant now = clock.instant();
         UUID leaseToken = UUID.randomUUID();
         jdbc.sql("""
-                update background_jobs set status = 'FAILED', lease_until = null, lease_token = null, updated_at = :now,
+                update background_jobs set status = :failed, lease_until = null, lease_token = null, updated_at = :now,
                     last_error = 'Lease expired during the final attempt'
-                where status = 'RUNNING' and lease_until < :now and attempts >= :maxAttempts
+                where status = :running and lease_until < :now and attempts >= :maxAttempts
                 """)
+                .param("failed", JobStatus.FAILED.code())
+                .param("running", JobStatus.RUNNING.code())
                 .param("now", Timestamp.from(now))
                 .param("maxAttempts", properties.maxAttempts())
                 .update();
         return jdbc.sql("""
                 with due as (
                     select id from background_jobs
-                    where (status = 'PENDING' and available_at <= :now) or (status = 'RUNNING' and lease_until < :now)
+                    where (status = :pending and available_at <= :now) or (status = :running and lease_until < :now)
                     order by available_at
                     limit :limit
                     for update skip locked)
                 update background_jobs job
-                set status = 'RUNNING', attempts = job.attempts + 1, lease_until = :leaseUntil, lease_token = :leaseToken, updated_at = :now
+                set status = :running, attempts = job.attempts + 1, lease_until = :leaseUntil, lease_token = :leaseToken, updated_at = :now
                 from due where job.id = due.id
                 returning job.id, job.type, job.aggregate_id, job.deduplication_key, job.payload::text as payload, job.available_at, job.attempts
                 """)
+                .param("pending", JobStatus.PENDING.code())
+                .param("running", JobStatus.RUNNING.code())
                 .param("now", Timestamp.from(now))
                 .param("limit", limit)
                 .param("leaseUntil", Timestamp.from(now.plus(properties.lease())))
@@ -89,7 +95,8 @@ public class JobStore implements DurableJobs {
     }
 
     public void renewLease(ClaimedJob job) {
-        jdbc.sql("update background_jobs set lease_until = :leaseUntil where id = :id and lease_token = :token and status = 'RUNNING'")
+        jdbc.sql("update background_jobs set lease_until = :leaseUntil where id = :id and lease_token = :token and status = :running")
+                .param("running", JobStatus.RUNNING.code())
                 .param("leaseUntil", Timestamp.from(clock.instant().plus(properties.lease())))
                 .param("id", job.id())
                 .param("token", job.leaseToken())
@@ -100,9 +107,11 @@ public class JobStore implements DurableJobs {
     public void complete(ClaimedJob job) {
         Timestamp now = Timestamp.from(clock.instant());
         jdbc.sql("""
-                update background_jobs set status = 'SUCCEEDED', completed_at = :now, updated_at = :now, lease_until = null, lease_token = null
-                where id = :id and lease_token = :token and status = 'RUNNING'
+                update background_jobs set status = :succeeded, completed_at = :now, updated_at = :now, lease_until = null, lease_token = null
+                where id = :id and lease_token = :token and status = :running
                 """)
+                .param("succeeded", JobStatus.SUCCEEDED.code())
+                .param("running", JobStatus.RUNNING.code())
                 .param("now", now)
                 .param("id", job.id())
                 .param("token", job.leaseToken())
@@ -116,9 +125,10 @@ public class JobStore implements DurableJobs {
         jdbc.sql("""
                 update background_jobs set status = :status, available_at = :retryAt, last_error = :error, updated_at = :now,
                     lease_until = null, lease_token = null
-                where id = :id and lease_token = :token and status = 'RUNNING'
+                where id = :id and lease_token = :token and status = :running
                 """)
-                .param("status", terminal ? "FAILED" : "PENDING")
+                .param("status", (terminal ? JobStatus.FAILED : JobStatus.PENDING).code())
+                .param("running", JobStatus.RUNNING.code())
                 .param("retryAt", Timestamp.from(retryAt))
                 .param("error", error.length() > 2000 ? error.substring(0, 2000) : error)
                 .param("now", Timestamp.from(now))

@@ -24,7 +24,7 @@ export async function signInAsAdmin(page: Page) {
   const setup = (await (await page.request.get('/api/v1/setup')).json()) as { required: boolean }
   if (setup.required) {
     await page.goto('/setup')
-    await page.getByLabel('Institution name').fill('Shapla Tutoring')
+    await page.getByLabel('Workspace name').fill('Shapla Tutoring')
     await page.getByLabel('Timezone').selectOption('Asia/Dhaka')
     await page.getByLabel('Administrator username').fill(ADMIN.username)
     await page.getByLabel('Display name').fill('Administrator')

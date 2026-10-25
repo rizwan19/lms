@@ -1,18 +1,21 @@
 package com.saasresearcher.learning.courses.service;
 
 import com.saasresearcher.learning.audit.api.AuditEntry;
-import com.saasresearcher.learning.audit.api.AuditLog;
+import com.saasresearcher.learning.audit.api.AuditService;
 import com.saasresearcher.learning.common.Actor;
 import com.saasresearcher.learning.common.ApiException;
 import com.saasresearcher.learning.common.Revisions;
-import com.saasresearcher.learning.courses.api.CourseCatalog;
+import com.saasresearcher.learning.courses.api.CourseCatalogService;
+import com.saasresearcher.learning.courses.api.CourseEditionListener;
 import com.saasresearcher.learning.courses.api.CourseLesson;
 import com.saasresearcher.learning.courses.api.CourseSection;
 import com.saasresearcher.learning.courses.api.PublishedCourse;
-import com.saasresearcher.learning.courses.entity.CourseRows.CourseRow;
-import com.saasresearcher.learning.courses.entity.CourseRows.VersionRow;
-import com.saasresearcher.learning.courses.repository.CourseContentRepository;
+import com.saasresearcher.learning.courses.entity.Course;
+import com.saasresearcher.learning.courses.entity.CourseVersion;
 import com.saasresearcher.learning.courses.repository.CourseRepository;
+import com.saasresearcher.learning.courses.repository.CourseVersionRepository;
+import com.saasresearcher.learning.identity.api.AccountSummary;
+import com.saasresearcher.learning.identity.api.IdentityAccess;
 import com.saasresearcher.learning.media.api.AssetPurpose;
 import com.saasresearcher.learning.media.api.MediaCatalog;
 import java.time.Clock;
@@ -20,53 +23,69 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Seals the draft as the next immutable edition under the course row lock, so concurrent publishes cannot both win. */
+/**
+ * Seals the draft as the next immutable edition. The author's approval is rechecked under a shared account lock, then
+ * the course row is locked, so concurrent publishes cannot both win and a suspension cannot slip in between.
+ */
 @Service
 public class CoursePublicationService {
 
     private final CourseRepository courses;
-    private final CourseContentRepository content;
-    private final CourseAccess access;
+    private final CourseVersionRepository versions;
+    private final CourseContent content;
+    private final CourseOwnershipServiceServiceImpl ownership;
+    private final IdentityAccess identity;
     private final MediaCatalog media;
-    private final CourseCatalog catalog;
-    private final RequiredExams requiredExams;
-    private final AuditLog audit;
+    private final CourseCatalogService catalog;
+    private final ObjectProvider<CourseEditionListener> listeners;
+    private final AuditService audit;
     private final Clock clock;
 
-    CoursePublicationService(CourseRepository courses, CourseContentRepository content, CourseAccess access, MediaCatalog media,
-            CourseCatalog catalog, RequiredExams requiredExams, AuditLog audit, Clock clock) {
+    CoursePublicationService(CourseRepository courses, CourseVersionRepository versions, CourseContent content, CourseOwnershipServiceServiceImpl ownership,
+                             IdentityAccess identity, MediaCatalog media, CourseCatalogService catalog, ObjectProvider<CourseEditionListener> listeners, AuditService audit,
+                             Clock clock) {
         this.courses = courses;
+        this.versions = versions;
         this.content = content;
-        this.access = access;
+        this.ownership = ownership;
+        this.identity = identity;
         this.media = media;
         this.catalog = catalog;
-        this.requiredExams = requiredExams;
+        this.listeners = listeners;
         this.audit = audit;
         this.clock = clock;
     }
 
     @Transactional
     public PublishedCourse publish(UUID courseId, long expectedRevision, Actor actor) {
-        CourseRow course = access.lockCourse(courseId, actor);
-        VersionRow draft = courses.lockDraft(courseId)
+        ownership.requirePublishAuthor(courseId, actor);
+        AccountSummary author = identity.lockShared(List.of(actor.userId())).get(actor.userId());
+        if (author == null || !author.isActiveApprovedTeacher()) {
+            throw ApiException.teacherApprovalRequired();
+        }
+        ownership.lock(courseId);
+        CourseVersion draft = versions.lockDraft(courseId)
                 .orElseThrow(() -> ApiException.conflict(CourseErrors.NO_DRAFT, "There is no draft to publish"));
-        Revisions.require(expectedRevision, draft.version());
-        requirePublishable(draft, content.readTree(draft.id()));
-        requiredExams.require(courseId, content.requiredExams(draft.id()));
+        Revisions.require(expectedRevision, draft.getVersion());
+        requirePublishable(draft, content.readTree(draft.getId()));
+        listeners.forEach(listener -> listener.beforePublish(courseId, draft.getId()));
 
-        int edition = courses.nextEdition(courseId);
-        courses.publish(draft.id(), edition, actor.userId(), clock.instant());
-        courses.updateCourse(courseId, draft.title(), course.status(), clock.instant());
+        int edition = versions.nextEdition(courseId);
+        draft.publish(edition, clock.instant());
+        Course course = courses.findById(courseId).orElseThrow();
+        course.published(draft.getTitle(), clock.instant());
+        versions.flush();
         audit.record(AuditEntry.success(actor.userId(), "course.published", "course", courseId, Map.of("edition", edition)));
-        return catalog.requirePublished(draft.id());
+        return catalog.requirePublished(draft.getId());
     }
 
-    private void requirePublishable(VersionRow draft, List<CourseSection> tree) {
+    private void requirePublishable(CourseVersion draft, List<CourseSection> tree) {
         Map<String, String> errors = new LinkedHashMap<>();
-        if (draft.title().isBlank()) {
+        if (draft.getTitle().isBlank()) {
             errors.put("title", "Required");
         }
         if (tree.stream().allMatch(section -> section.lessons().isEmpty())) {

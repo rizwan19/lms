@@ -1,73 +1,36 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useMemo, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Navigate, useLocation } from 'react-router'
 import { api, ApiError } from '../shared/api'
-import type { Me, Role } from '../shared/types'
+import type { Profile, Role } from '../shared/types'
 import { Spinner } from '../shared/ui'
 
-const ROLE_PRIORITY: Role[] = ['ADMINISTRATOR', 'TEACHER', 'STUDENT']
-const ROLE_KEY = 'learning.activeRole'
-
 type Session = {
-  me: Me | null
-  activeRole: Role | null
-  setActiveRole: (role: Role) => void
+  me: Profile | null
   refresh: () => Promise<void>
   signOut: () => Promise<void>
 }
 
 const SessionContext = createContext<Session | null>(null)
 
-async function loadMe(): Promise<Me | null> {
+async function loadProfile(): Promise<Profile | null> {
   try {
-    return await api.get<Me>('/auth/me')
+    return await api.get<Profile>('/auth/me')
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) return null
     throw error
   }
 }
 
-function storedRole(): Role | null {
-  try {
-    return localStorage.getItem(ROLE_KEY) as Role | null
-  } catch {
-    return null
-  }
-}
-
-export function homePath(role: Role | null): string {
-  switch (role) {
-    case 'ADMINISTRATOR':
-      return '/admin/users'
-    case 'TEACHER':
-      return '/teacher/courses'
-    case 'STUDENT':
-      return '/student'
-    default:
-      return '/login'
-  }
+export function homePath(me: Profile | null): string {
+  if (!me) return '/login'
+  return me.role === 'TEACHER' ? '/teacher/courses' : '/student'
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
-  const meQuery = useQuery({ queryKey: ['me'], queryFn: loadMe, retry: false, staleTime: 60_000 })
-  const [preferredRole, setPreferredRole] = useState<Role | null>(storedRole)
-
+  const meQuery = useQuery({ queryKey: ['me'], queryFn: loadProfile, retry: false, staleTime: 60_000 })
   const me = meQuery.data ?? null
-  const activeRole = me
-    ? preferredRole && me.roles.includes(preferredRole)
-      ? preferredRole
-      : (ROLE_PRIORITY.find((role) => me.roles.includes(role)) ?? null)
-    : null
-
-  const setActiveRole = useCallback((role: Role) => {
-    setPreferredRole(role)
-    try {
-      localStorage.setItem(ROLE_KEY, role)
-    } catch {
-      // Preference only; the server never relies on it.
-    }
-  }, [])
 
   const refresh = useCallback(async () => {
     await queryClient.invalidateQueries({ queryKey: ['me'] })
@@ -79,7 +42,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     queryClient.removeQueries({ predicate: (query) => query.queryKey[0] !== 'me' })
   }, [queryClient])
 
-  const value = useMemo(() => ({ me, activeRole, setActiveRole, refresh, signOut }), [me, activeRole, setActiveRole, refresh, signOut])
+  const value = useMemo(() => ({ me, refresh, signOut }), [me, refresh, signOut])
 
   if (meQuery.isPending) return <Spinner />
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
@@ -91,12 +54,16 @@ export function useSession(): Session {
   return session
 }
 
-/** Route guard: requires sign-in, a completed password change and (optionally) one of the roles. */
-export function RequireAuth({ roles, children }: { roles?: Role[]; children: ReactNode }) {
+/**
+ * Route guard: requires sign-in, a verified email (the server refuses almost everything else until then) and,
+ * optionally, a role or workspace administration.
+ */
+export function RequireAuth({ role, administrator, children }: { role?: Role; administrator?: boolean; children: ReactNode }) {
   const { me } = useSession()
   const location = useLocation()
   if (!me) return <Navigate to="/login" replace state={{ from: location.pathname }} />
-  if (me.passwordChangeRequired && location.pathname !== '/change-password') return <Navigate to="/change-password" replace />
-  if (roles && !roles.some((role) => me.roles.includes(role))) return <Navigate to="/" replace />
+  if (!me.emailVerified && location.pathname !== '/change-password') return <Navigate to="/verify-email" replace />
+  if (role && me.role !== role) return <Navigate to="/" replace />
+  if (administrator && !me.capabilities.canAdministerWorkspace) return <Navigate to="/" replace />
   return <>{children}</>
 }

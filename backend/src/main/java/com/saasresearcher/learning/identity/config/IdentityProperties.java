@@ -9,8 +9,10 @@ public record IdentityProperties(
         @DefaultValue("12") int passwordHashStrength,
         @DefaultValue("5") int loginAttemptsPerAccount,
         @DefaultValue("50") int loginAttemptsPerIp,
+        @DefaultValue("20") int registrationsPerIp,
+        @DefaultValue("5") int verificationResendsPerAccount,
         @DefaultValue("15m") Duration rateLimitWindow,
-        @DefaultValue("72h") Duration invitationTtl,
+        @DefaultValue("24h") Duration emailVerificationTtl,
         @DefaultValue("30m") Duration passwordResetTtl,
-        @DefaultValue("24h") Duration temporaryPasswordTtl) {
+        @DefaultValue("24h") Duration teacherReapplyCooldown) {
 }

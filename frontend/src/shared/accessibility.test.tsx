@@ -3,9 +3,20 @@ import axe from 'axe-core'
 import { routes } from '../app/routes'
 import { mockApi, renderRoutes } from '../test-utils'
 
-const institution = { body: { name: 'School', timezone: 'Asia/Dhaka', logoAssetId: null, certificateVerification: false, verificationShowsStudent: false, revision: 0 } }
+const workspace = { body: { name: 'School', timezone: 'Asia/Dhaka', logoAssetId: null, certificateVerification: false, verificationShowsStudent: false, revision: 0 } }
 const notifications = { body: { items: [], page: 0, size: 20, total: 0 } }
-const user = (roles: string[]) => ({ body: { id: 'u1', username: 'user', displayName: 'ব্যবহারকারী', email: null, roles, passwordChangeRequired: false } })
+const user = (role: 'TEACHER' | 'STUDENT') => ({
+  body: {
+    id: 'u1',
+    username: 'user',
+    displayName: 'ব্যবহারকারী',
+    email: 'user@example.test',
+    role,
+    emailVerified: true,
+    teacherStatus: role === 'TEACHER' ? 'APPROVED' : null,
+    capabilities: { canAdministerWorkspace: role === 'TEACHER', canPublishCourses: role === 'TEACHER', canLearn: true },
+  },
+})
 
 /** Structural WCAG checks (labels, names, landmarks, ARIA). Colour contrast needs a real browser and is excluded. */
 async function expectNoViolations() {
@@ -14,7 +25,7 @@ async function expectNoViolations() {
 }
 
 test('sign-in page', async () => {
-  mockApi({ 'GET /auth/me': { status: 401, body: {} }, 'GET /setup': { body: { required: false } }, 'GET /institution': institution })
+  mockApi({ 'GET /auth/me': { status: 401, body: {} }, 'GET /setup': { body: false }, 'GET /workspace': workspace })
   renderRoutes(routes, '/login')
   await screen.findByRole('heading', { name: 'Sign in' })
   await expectNoViolations()
@@ -22,8 +33,8 @@ test('sign-in page', async () => {
 
 test('student dashboard', async () => {
   mockApi({
-    'GET /auth/me': user(['STUDENT']),
-    'GET /institution': institution,
+    'GET /auth/me': user('STUDENT'),
+    'GET /workspace': workspace,
     'GET /notifications': notifications,
     'GET /me/learning': {
       body: [
@@ -39,8 +50,8 @@ test('student dashboard', async () => {
 test('exam attempt with every question type', async () => {
   const now = new Date().toISOString()
   mockApi({
-    'GET /auth/me': user(['STUDENT']),
-    'GET /institution': institution,
+    'GET /auth/me': user('STUDENT'),
+    'GET /workspace': workspace,
     'GET /notifications': notifications,
     'GET /attempts/a1': {
       body: {
@@ -73,10 +84,10 @@ test('exam attempt with every question type', async () => {
 
 test('teacher account list', async () => {
   mockApi({
-    'GET /auth/me': user(['TEACHER']),
-    'GET /institution': institution,
+    'GET /auth/me': user('TEACHER'),
+    'GET /workspace': workspace,
     'GET /notifications': notifications,
-    'GET /users': { body: { items: [{ id: 's1', username: 'rahim', displayName: 'রহিম', email: null, roles: ['STUDENT'], status: 'ACTIVE', createdAt: '2026-10-18T00:00:00Z', revision: 0 }], page: 0, size: 25, total: 1 } },
+    'GET /users': { body: { items: [{ id: 's1', username: 'rahim', displayName: 'রহিম', email: 'rahim@example.test', role: 'STUDENT', status: 'ACTIVE', emailVerified: true, teacherStatus: null, createdAt: '2026-10-18T00:00:00Z', revision: 0 }], page: 0, size: 25, total: 1 } },
   })
   renderRoutes(routes, '/admin/users')
   await screen.findByRole('cell', { name: 'রহিম' })

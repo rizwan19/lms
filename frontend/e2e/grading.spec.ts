@@ -20,8 +20,8 @@ test('written answers wait as pending until the teacher grades and publishes the
   const attempt = await api<{ id: string }>(page, 'POST', `/exam-assignments/${assignmentId}/attempts`)
   const single = exam.questions.find((question) => question.prompt === 'Two plus two?')!
   const essay = exam.questions.find((question) => question.prompt === 'Why is the sky blue?')!
-  await api(page, 'PUT', `/attempts/${attempt.id}/answers/${single.id}`, { expectedRevision: 0, selectedOptionIds: [single.options.find((option) => option.label === 'Four')!.id] })
-  await api(page, 'PUT', `/attempts/${attempt.id}/answers/${essay.id}`, { expectedRevision: 0, writtenText: 'Rayleigh scattering.' })
+  await api(page, 'PUT', `/attempts/${attempt.id}/answers/${single.id}`, { selectedOptionIds: [single.options.find((option) => option.label === 'Four')!.id] })
+  await api(page, 'PUT', `/attempts/${attempt.id}/answers/${essay.id}`, { writtenText: 'Rayleigh scattering.' })
   await api(page, 'POST', `/attempts/${attempt.id}/submit`)
   await page.getByRole('link', { name: 'Results' }).click()
   await expect(page.getByText('Waiting for your teacher to publish the result.')).toBeVisible()

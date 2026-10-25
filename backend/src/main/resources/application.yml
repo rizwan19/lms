@@ -12,7 +12,7 @@ spring:
     properties:
       hibernate.jdbc.time_zone: UTC
   flyway:
-    locations: classpath:db/migration
+    locations: classpath:db/coursecentric
   jackson:
     time-zone: UTC
   mvc:
@@ -21,6 +21,22 @@ spring:
   session:
     jdbc:
       initialize-schema: never
+  mail:
+    # Optional: leave SMTP_HOST unset to run without email (temporary passwords and assisted resets).
+    host: ${SMTP_HOST:}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
 
 server:
   port: ${LEARNING_PORT:8080}

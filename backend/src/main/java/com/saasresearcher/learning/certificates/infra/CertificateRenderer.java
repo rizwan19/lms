@@ -5,7 +5,7 @@ import com.google.zxing.EncodeHintType;
 import com.google.zxing.WriterException;
 import com.google.zxing.common.BitMatrix;
 import com.google.zxing.qrcode.QRCodeWriter;
-import com.saasresearcher.learning.certificates.entity.CertificateSnapshot;
+import com.saasresearcher.learning.certificates.entity.Certificate;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -13,7 +13,6 @@ import java.io.InputStream;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Map;
-import java.util.UUID;
 import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.PDDocumentInformation;
 import org.apache.pdfbox.pdmodel.PDPage;
@@ -25,9 +24,9 @@ import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
 import org.springframework.stereotype.Component;
 
 /**
- * Renders a certificate PDF from its frozen snapshot with an embedded Noto Sans font (SIL OFL 1.1). Text the font cannot
+ * Renders a certificate PDF from its frozen printed fields with an embedded Noto Sans font (SIL OFL 1.1). Text the font cannot
  * draw (for example scripts that need shaping, such as Bengali) fails rendering with an explicit message instead of
- * silently replacing characters in the student's name.
+ * silently replacing characters in the learner's name.
  */
 @Component
 public class CertificateRenderer {
@@ -42,13 +41,14 @@ public class CertificateRenderer {
         }
     }
 
-    byte[] render(UUID certificateId, CertificateSnapshot snapshot, String verificationUrl, byte[] logo) throws IOException, UnsupportedTextException {
+    byte[] render(Certificate certificate, String verificationUrl, byte[] logo) throws IOException, UnsupportedTextException {
         try (PDDocument document = new PDDocument()) {
             PDType0Font regular = font(document, "/fonts/NotoSans-Regular.ttf");
             PDType0Font bold = font(document, "/fonts/NotoSans-Bold.ttf");
-            requireDrawable(regular, "institution name", snapshot.institutionName());
-            requireDrawable(bold, "student name", snapshot.studentName());
-            requireDrawable(bold, "course title", snapshot.courseTitle());
+            requireDrawable(regular, "workspace name", certificate.getWorkspaceName());
+            requireDrawable(regular, "author name", certificate.getAuthorName());
+            requireDrawable(bold, "learner name", certificate.getLearnerName());
+            requireDrawable(bold, "course title", certificate.getCourseTitle());
 
             PDPage page = new PDPage(PAGE);
             document.addPage(page);
@@ -67,14 +67,15 @@ public class CertificateRenderer {
                     content.drawImage(image, (PAGE.getWidth() - width) / 2, y - height, width, height);
                     y -= height + 24;
                 }
-                y = centered(content, regular, 20, snapshot.institutionName(), y);
+                y = centered(content, regular, 20, certificate.getWorkspaceName(), y);
                 y = centered(content, bold, 34, "Certificate of Completion", y - 24);
                 y = centered(content, regular, 16, "This certifies that", y - 30);
-                y = centered(content, bold, 30, snapshot.studentName(), y - 20);
+                y = centered(content, bold, 30, certificate.getLearnerName(), y - 20);
                 y = centered(content, regular, 16, "has completed the course", y - 20);
-                y = centered(content, bold, 24, snapshot.courseTitle(), y - 16);
-                centered(content, regular, 13, "Edition " + snapshot.edition() + " · completed on " + DATE.format(snapshot.completedOn()), y - 18);
-                text(content, regular, 9, "Certificate " + certificateId, 48, 44);
+                y = centered(content, bold, 24, certificate.getCourseTitle(), y - 16);
+                y = centered(content, regular, 13, "Edition " + certificate.getEdition() + " · completed on " + DATE.format(certificate.getCompletedOn()), y - 18);
+                centered(content, regular, 13, "Course author: " + certificate.getAuthorName(), y - 12);
+                text(content, regular, 9, "Certificate " + certificate.getId(), 48, 44);
                 if (verificationUrl != null) {
                     PDImageXObject qr = LosslessFactory.createFromImage(document, qr(verificationUrl));
                     content.drawImage(qr, PAGE.getWidth() - 140, 48, 92, 92);
@@ -98,7 +99,7 @@ public class CertificateRenderer {
             font.encode(text);
         } catch (IllegalArgumentException | IOException e) {
             throw new UnsupportedTextException("The " + field + " contains characters the certificate font cannot display ("
-                    + "Latin, Greek and Cyrillic scripts are supported). Ask an administrator about a supported spelling.");
+                    + "Latin, Greek and Cyrillic scripts are supported). Ask the course author about a supported spelling.");
         }
     }
 

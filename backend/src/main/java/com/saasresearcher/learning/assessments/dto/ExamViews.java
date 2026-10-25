@@ -1,28 +1,40 @@
 package com.saasresearcher.learning.assessments.dto;
 
-import com.saasresearcher.learning.assessments.entity.ExamQuestion;
+import com.saasresearcher.learning.assessments.api.ExamMode;
+import com.saasresearcher.learning.assessments.api.FeedbackPolicy;
+import com.saasresearcher.learning.assessments.api.QuestionType;
+import com.saasresearcher.learning.assessments.api.ResultPolicy;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-/** Author-facing exam responses; these include answer keys and are never shown to students. */
 public final class ExamViews {
 
     private ExamViews() {
     }
 
-    public record EditionView(UUID versionId, int edition, String title, Instant publishedAt) {
+    public record ScheduleCommand(ExamMode mode, Instant opensAt, Instant closesAt, Integer durationMinutes, Integer maxAttempts,
+            ResultPolicy resultPolicy, FeedbackPolicy feedbackPolicy) {
     }
 
-    public record DraftHeader(UUID versionId, long revision) {
+    public record ExamView(UUID id, UUID courseId, UUID courseVersionId, boolean draftEdition, String title, int questionCount,
+            BigDecimal maxPoints, boolean mixed, boolean required, ExamMode mode, Instant opensAt, Instant closesAt,
+            int durationMinutes, int maxAttempts, ResultPolicy resultPolicy, FeedbackPolicy feedbackPolicy, long revision) {
     }
 
-    public record ExamDetail(UUID id, UUID courseId, String title, List<EditionView> editions, DraftHeader draft) {
+    public record QuestionContent(UUID id, QuestionType type, String prompt, BigDecimal points, String explanation, String gradingNotes,
+            List<OptionContent> options) {
+
+        public QuestionContent {
+            options = List.copyOf(options);
+        }
     }
 
-    /** A draft or an edition with its questions; {@code edition} is null for drafts. */
-    public record ExamContent(UUID versionId, UUID examId, Integer edition, long revision, String title, String instructions,
-            BigDecimal passPercent, List<ExamQuestion> questions) {
+    public record OptionContent(UUID id, String label, boolean correct) {
+    }
+
+    public record ExamContent(UUID id, UUID courseId, UUID courseVersionId, boolean draftEdition, long revision, String title,
+            String instructions, BigDecimal passPercent, List<QuestionContent> questions) {
     }
 }

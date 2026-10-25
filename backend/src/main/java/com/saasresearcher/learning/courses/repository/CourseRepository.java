@@ -1,170 +1,24 @@
 package com.saasresearcher.learning.courses.repository;
 
-import com.saasresearcher.learning.common.PageQuery;
-import com.saasresearcher.learning.courses.entity.CourseRows.CourseRow;
-import com.saasresearcher.learning.courses.entity.CourseRows.CourseStatus;
-import com.saasresearcher.learning.courses.entity.CourseRows.CourseSummary;
-import com.saasresearcher.learning.courses.entity.CourseRows.VersionRow;
-import com.saasresearcher.learning.courses.entity.CourseRows.VersionStatus;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Timestamp;
-import java.time.Instant;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import com.saasresearcher.learning.courses.api.CourseStatus;
+import com.saasresearcher.learning.courses.entity.Course;
 import java.util.UUID;
-import org.springframework.jdbc.core.simple.JdbcClient;
-import org.springframework.stereotype.Repository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
-/** Course identity, teacher assignments and edition headers. */
-@Repository
-public class CourseRepository {
+public interface CourseRepository extends JpaRepository<Course, UUID> {
 
-    private static final String VERSION_COLUMNS =
-            "id, course_id, edition, status, title, description, based_on_version_id, published_at, version";
+    Page<Course> findByAuthorIdAndStatus(UUID authorId, CourseStatus status, Pageable pageable);
 
-    private final JdbcClient jdbc;
-
-    CourseRepository(JdbcClient jdbc) {
-        this.jdbc = jdbc;
-    }
-
-    public void insertCourse(UUID id, String title, UUID createdBy, Instant now) {
-        jdbc.sql("insert into courses (id, title, status, created_by, created_at, updated_at) values (:id, :title, 'ACTIVE', :by, :now, :now)")
-                .param("id", id).param("title", title).param("by", createdBy).param("now", Timestamp.from(now))
-                .update();
-    }
-
-    public Optional<CourseRow> findCourse(UUID id) {
-        return jdbc.sql("select id, title, status, created_by, updated_at, version from courses where id = :id")
-                .param("id", id).query(CourseRepository::courseRow).optional();
-    }
-
-    public Optional<CourseRow> lockCourse(UUID id) {
-        return jdbc.sql("select id, title, status, created_by, updated_at, version from courses where id = :id for update")
-                .param("id", id).query(CourseRepository::courseRow).optional();
-    }
-
-    public void updateCourse(UUID id, String title, CourseStatus status, Instant now) {
-        jdbc.sql("""
-                update courses set title = :title, status = :status, updated_at = :now, version = version + 1,
-                    archived_at = case when :status = 'ARCHIVED' then coalesce(archived_at, :now) end
-                where id = :id
-                """)
-                .param("id", id).param("title", title).param("status", status.name()).param("now", Timestamp.from(now))
-                .update();
-    }
-
-    public List<CourseSummary> listCourses(UUID teacherId, CourseStatus status, PageQuery page) {
-        return jdbc.sql("""
-                select c.id, c.title, c.status, c.updated_at,
-                    (select max(edition) from course_versions v where v.course_id = c.id) as latest_edition,
-                    (select version from course_versions v where v.course_id = c.id and v.status = 'DRAFT') as draft_revision
-                from courses c
-                where c.status = :status and (cast(:teacher as uuid) is null
-                    or exists (select 1 from course_teachers t where t.course_id = c.id and t.teacher_id = :teacher))
-                order by lower(c.title), c.id
-                limit :limit offset :offset
-                """)
-                .param("status", status.name()).param("teacher", teacherId)
-                .param("limit", page.size()).param("offset", page.offset())
-                .query((rs, row) -> new CourseSummary(rs.getObject("id", UUID.class), rs.getString("title"),
-                        CourseStatus.valueOf(rs.getString("status")), (Integer) rs.getObject("latest_edition"),
-                        (Long) rs.getObject("draft_revision"), rs.getTimestamp("updated_at").toInstant()))
-                .list();
-    }
-
-    public long countCourses(UUID teacherId, CourseStatus status) {
-        return jdbc.sql("""
-                select count(*) from courses c where c.status = :status and (cast(:teacher as uuid) is null
-                    or exists (select 1 from course_teachers t where t.course_id = c.id and t.teacher_id = :teacher))
-                """)
-                .param("status", status.name()).param("teacher", teacherId)
-                .query(Long.class).single();
-    }
-
-    public Set<UUID> teachers(UUID courseId) {
-        return Set.copyOf(jdbc.sql("select teacher_id from course_teachers where course_id = :id").param("id", courseId).query(UUID.class).list());
-    }
-
-    public boolean isTeacher(UUID courseId, UUID userId) {
-        return jdbc.sql("select count(*) > 0 from course_teachers where course_id = :course and teacher_id = :user")
-                .param("course", courseId).param("user", userId).query(Boolean.class).single();
-    }
-
-    public void replaceTeachers(UUID courseId, Collection<UUID> teacherIds) {
-        jdbc.sql("delete from course_teachers where course_id = :id").param("id", courseId).update();
-        teacherIds.forEach(teacherId -> jdbc.sql("insert into course_teachers (course_id, teacher_id) values (:course, :teacher)")
-                .param("course", courseId).param("teacher", teacherId).update());
-    }
-
-    public void insertDraft(UUID id, UUID courseId, String title, String description, UUID basedOn, Instant now) {
-        jdbc.sql("""
-                insert into course_versions (id, course_id, status, title, description, based_on_version_id, created_at, updated_at)
-                values (:id, :course, 'DRAFT', :title, :description, :basedOn, :now, :now)
-                """)
-                .param("id", id).param("course", courseId).param("title", title).param("description", description)
-                .param("basedOn", basedOn).param("now", Timestamp.from(now))
-                .update();
-    }
-
-    public Optional<VersionRow> findVersion(UUID id) {
-        return jdbc.sql("select " + VERSION_COLUMNS + " from course_versions where id = :id")
-                .param("id", id).query(CourseRepository::versionRow).optional();
-    }
-
-    public Optional<VersionRow> findDraft(UUID courseId) {
-        return jdbc.sql("select " + VERSION_COLUMNS + " from course_versions where course_id = :course and status = 'DRAFT'")
-                .param("course", courseId).query(CourseRepository::versionRow).optional();
-    }
-
-    public Optional<VersionRow> lockDraft(UUID courseId) {
-        return jdbc.sql("select " + VERSION_COLUMNS + " from course_versions where course_id = :course and status = 'DRAFT' for update")
-                .param("course", courseId).query(CourseRepository::versionRow).optional();
-    }
-
-    public List<VersionRow> editions(UUID courseId) {
-        return jdbc.sql("select " + VERSION_COLUMNS + " from course_versions where course_id = :course and status = 'PUBLISHED' order by edition desc")
-                .param("course", courseId).query(CourseRepository::versionRow).list();
-    }
-
-    /** Updates a draft header if it still has the expected revision; returns false on a stale revision. */
-    public boolean updateDraft(UUID id, long expectedRevision, String title, String description, Instant now) {
-        return jdbc.sql("""
-                update course_versions set title = :title, description = :description, updated_at = :now, version = version + 1
-                where id = :id and status = 'DRAFT' and version = :expected
-                """)
-                .param("id", id).param("title", title).param("description", description)
-                .param("now", Timestamp.from(now)).param("expected", expectedRevision)
-                .update() == 1;
-    }
-
-    public void publish(UUID id, int edition, UUID publishedBy, Instant now) {
-        jdbc.sql("""
-                update course_versions set status = 'PUBLISHED', edition = :edition, published_at = :now, published_by = :by,
-                    updated_at = :now, version = version + 1
-                where id = :id and status = 'DRAFT'
-                """)
-                .param("id", id).param("edition", edition).param("by", publishedBy).param("now", Timestamp.from(now))
-                .update();
-    }
-
-    public int nextEdition(UUID courseId) {
-        return jdbc.sql("select coalesce(max(edition), 0) + 1 from course_versions where course_id = :course")
-                .param("course", courseId).query(Integer.class).single();
-    }
-
-    private static CourseRow courseRow(ResultSet rs, int row) throws SQLException {
-        return new CourseRow(rs.getObject("id", UUID.class), rs.getString("title"), CourseStatus.valueOf(rs.getString("status")),
-                rs.getObject("created_by", UUID.class), rs.getTimestamp("updated_at").toInstant(), rs.getLong("version"));
-    }
-
-    private static VersionRow versionRow(ResultSet rs, int row) throws SQLException {
-        Timestamp publishedAt = rs.getTimestamp("published_at");
-        return new VersionRow(rs.getObject("id", UUID.class), rs.getObject("course_id", UUID.class), (Integer) rs.getObject("edition"),
-                VersionStatus.valueOf(rs.getString("status")), rs.getString("title"), rs.getString("description"),
-                rs.getObject("based_on_version_id", UUID.class), publishedAt == null ? null : publishedAt.toInstant(), rs.getLong("version"));
-    }
+    @Query("""
+            select c from Course c where c.status = com.saasresearcher.learning.courses.api.CourseStatus.ACTIVE
+              and exists (select v.id from CourseVersion v where v.courseId = c.id
+                  and v.status = com.saasresearcher.learning.courses.api.EditionStatus.PUBLISHED)
+              and lower(c.title) like :pattern
+              and (:author is null or c.authorId = :author)
+            """)
+    Page<Course> catalog(@Param("pattern") String pattern, @Param("author") UUID authorId, Pageable pageable);
 }

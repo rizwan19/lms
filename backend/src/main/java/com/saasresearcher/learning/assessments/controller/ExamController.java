@@ -1,85 +1,63 @@
 package com.saasresearcher.learning.assessments.controller;
 
-import com.saasresearcher.learning.assessments.dto.ExamDraftInput;
+import com.saasresearcher.learning.assessments.dto.ExamDraftRequest;
+import com.saasresearcher.learning.assessments.dto.ExamScheduleRequest;
 import com.saasresearcher.learning.assessments.dto.ExamViews.ExamContent;
-import com.saasresearcher.learning.assessments.dto.ExamViews.ExamDetail;
-import com.saasresearcher.learning.assessments.entity.ExamRows.ExamSummary;
+import com.saasresearcher.learning.assessments.dto.ExamViews.ExamView;
+import com.saasresearcher.learning.assessments.dto.ExamRequest;
 import com.saasresearcher.learning.assessments.service.ExamAuthoringService;
 import com.saasresearcher.learning.common.Actor;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.UUID;
+
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Author endpoints; responses include answer keys and are restricted to course authors. */
 @RestController
-@RequestMapping("/exams")
+@RequiredArgsConstructor
 public class ExamController {
 
-    private final ExamAuthoringService authoring;
+    private final ExamAuthoringService examAuthoringService;
 
-    ExamController(ExamAuthoringService authoring) {
-        this.authoring = authoring;
+    @GetMapping("/courses/{id}/exams")
+    List<ExamView> list(@PathVariable UUID id, @RequestParam(required = false) UUID versionId, Actor actor) {
+        return examAuthoringService.list(id, versionId, actor);
     }
 
-    @GetMapping
-    List<ExamSummary> list(@RequestParam UUID courseId, Actor actor) {
-        return authoring.list(courseId, actor);
-    }
-
-    @PostMapping
+    @PostMapping("/courses/{id}/exams")
     @ResponseStatus(HttpStatus.CREATED)
-    ExamDetail create(@Valid @RequestBody NewExam request, Actor actor) {
-        return authoring.detail(authoring.create(request.courseId(), request.title(), actor), actor);
+    ExamView createExam(@PathVariable UUID id, @Valid @RequestBody ExamRequest request, Actor actor) {
+        return examAuthoringService.createExam(id, request.title(), request.required(), request.schedule(), actor);
     }
 
-    @GetMapping("/{id}")
-    ExamDetail detail(@PathVariable UUID id, Actor actor) {
-        return authoring.detail(id, actor);
+    @GetMapping("/exams/{id}")
+    ExamContent getExam(@PathVariable UUID id, Actor actor) {
+        return examAuthoringService.getExam(id, actor);
     }
 
-    @GetMapping("/{id}/draft")
-    ExamContent draft(@PathVariable UUID id, Actor actor) {
-        return authoring.draft(id, actor);
+    @PutMapping("/exams/{id}")
+    ExamContent saveExam(@PathVariable UUID id, @RequestBody ExamDraftRequest request, Actor actor) {
+        return examAuthoringService.saveExam(id, request, actor);
     }
 
-    @PutMapping("/{id}/draft")
-    ExamContent saveDraft(@PathVariable UUID id, @RequestBody ExamDraftInput request, Actor actor) {
-        return authoring.saveDraft(id, request, actor);
+    @PutMapping("/exams/{id}/schedule")
+    ExamView schedule(@PathVariable UUID id, @RequestBody ExamScheduleRequest request, Actor actor) {
+        return examAuthoringService.updateSchedule(id, request.expectedRevision(), request.required(), request.schedule(), actor);
     }
 
-    @PostMapping("/{id}/draft")
-    @ResponseStatus(HttpStatus.CREATED)
-    ExamContent startDraft(@PathVariable UUID id, @Valid @RequestBody StartDraft request, Actor actor) {
-        return authoring.startDraft(id, request.fromVersionId(), actor);
-    }
-
-    @PostMapping("/{id}/publish")
-    ExamContent publish(@PathVariable UUID id, @RequestBody Publish request, Actor actor) {
-        return authoring.publish(id, request.expectedRevision(), actor);
-    }
-
-    @GetMapping("/{id}/editions/{versionId}")
-    ExamContent edition(@PathVariable UUID id, @PathVariable UUID versionId, Actor actor) {
-        return authoring.preview(id, versionId, actor);
-    }
-
-    record NewExam(@NotNull UUID courseId, @NotNull String title) {
-    }
-
-    record StartDraft(@NotNull UUID fromVersionId) {
-    }
-
-    record Publish(long expectedRevision) {
+    @DeleteMapping("/exams/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    void deleteExam(@PathVariable UUID id, Actor actor) {
+        examAuthoringService.deleteExam(id, actor);
     }
 }

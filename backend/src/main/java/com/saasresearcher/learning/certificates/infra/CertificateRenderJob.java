@@ -1,8 +1,7 @@
 package com.saasresearcher.learning.certificates.infra;
 
 import com.saasresearcher.learning.certificates.api.CertificateStatus;
-import com.saasresearcher.learning.certificates.entity.CertificateRow;
-import com.saasresearcher.learning.certificates.entity.CertificateSnapshot;
+import com.saasresearcher.learning.certificates.entity.Certificate;
 import com.saasresearcher.learning.certificates.infra.CertificateRenderer.UnsupportedTextException;
 import com.saasresearcher.learning.certificates.repository.CertificateRepository;
 import com.saasresearcher.learning.certificates.service.CertificateIssueService;
@@ -56,39 +55,39 @@ public class CertificateRenderJob implements JobHandler {
 
     @Override
     public void handle(JobRequest job) throws IOException {
-        CertificateRow certificate = certificates.find(job.aggregateId()).orElseThrow();
-        if (certificate.status() != CertificateStatus.PENDING_RENDER) {
+        Certificate certificate = certificates.findById(job.aggregateId()).orElseThrow();
+        if (certificate.getStatus() != CertificateStatus.PENDING_RENDER) {
             return;
         }
-        CertificateSnapshot snapshot = certificate.snapshot();
         byte[] pdf;
         try {
-            pdf = renderer.render(certificate.id(), snapshot, snapshot.verificationEnabled() ? publicOrigin + "/verify/" + snapshot.verificationToken() : null,
-                    logo(snapshot));
+            pdf = renderer.render(certificate,
+                    certificate.isVerificationEnabled() ? publicOrigin + "/verify/" + certificate.getVerificationToken() : null, logo(certificate));
         } catch (UnsupportedTextException unsupported) {
-            transactions.executeWithoutResult(status -> certificates.lock(certificate.id())
-                    .filter(current -> current.status() == CertificateStatus.PENDING_RENDER)
-                    .ifPresent(current -> certificates.setStatus(current.id(), CertificateStatus.RENDER_FAILED, unsupported.getMessage(), clock.instant())));
+            transactions.executeWithoutResult(status -> certificates.lockById(certificate.getId())
+                    .filter(current -> current.getStatus() == CertificateStatus.PENDING_RENDER)
+                    .ifPresent(current -> current.renderFailed(unsupported.getMessage(), clock.instant())));
             return;
         }
-        store.put(new UploadSource(certificate.storageKey(), new ByteArrayInputStream(pdf)));
+        store.put(new UploadSource(certificate.getStorageKey(), new ByteArrayInputStream(pdf)));
         transactions.executeWithoutResult(status -> {
-            CertificateRow current = certificates.lock(certificate.id()).orElseThrow();
-            if (current.status() == CertificateStatus.PENDING_RENDER) {
-                certificates.markIssued(current.id(), clock.instant());
-                notifications.notify(new NotificationRequest(current.studentId(), "certificate.issued", "Your certificate is ready",
-                        snapshot.courseTitle(), "/student/certificates", "certificate-issued:" + current.id()));
+            Certificate current = certificates.lockById(certificate.getId()).orElseThrow();
+            if (current.getStatus() == CertificateStatus.PENDING_RENDER) {
+                current.markIssued(clock.instant());
+                certificates.flush();
+                notifications.notify(new NotificationRequest(current.getLearnerId(), "certificate.issued", "Your certificate is ready",
+                        certificate.getCourseTitle(), "/me/certificates", "certificate-issued:" + current.getId()));
             } else {
-                certificates.markRendered(current.id(), clock.instant());
+                current.markRendered(clock.instant());
             }
         });
     }
 
-    private byte[] logo(CertificateSnapshot snapshot) throws IOException {
-        if (snapshot.logoAssetId() == null) {
+    private byte[] logo(Certificate certificate) throws IOException {
+        if (certificate.getLogoAssetId() == null) {
             return null;
         }
-        try (InputStream in = media.open(snapshot.logoAssetId())) {
+        try (InputStream in = media.open(certificate.getLogoAssetId())) {
             return in.readAllBytes();
         }
     }

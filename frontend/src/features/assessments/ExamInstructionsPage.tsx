@@ -2,13 +2,13 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router'
 import { api } from '../../shared/api'
 import { ErrorMessage, QueryState, formatDateTime } from '../../shared/ui'
-import { useInstitutionTimezone } from '../../shared/useInstitution'
+import { useWorkspaceTimezone } from '../../shared/useWorkspace'
 import type { Attempt, StudentExam } from './types'
 
 export function ExamInstructionsPage() {
   const { enrollmentId = '', assignmentId = '' } = useParams()
   const navigate = useNavigate()
-  const timeZone = useInstitutionTimezone()
+  const timeZone = useWorkspaceTimezone()
   const exams = useQuery({ queryKey: ['student-exams', enrollmentId], queryFn: () => api.get<StudentExam[]>(`/me/enrollments/${enrollmentId}/exams`) })
   const start = useMutation({
     mutationFn: () => api.post<Attempt>(`/exam-assignments/${assignmentId}/attempts`),

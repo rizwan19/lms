@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { api } from '../../shared/api'
 import { instantToZonedInput, zonedInputToInstant } from '../../shared/time'
 import { ErrorMessage, QueryState, fieldErrors, formatDateTime } from '../../shared/ui'
-import { useInstitutionTimezone } from '../../shared/useInstitution'
+import { useWorkspaceTimezone } from '../../shared/useWorkspace'
 import type { ExamAssignment, ExamSummary, FeedbackPolicy, ResultPolicy } from './types'
 
 const FEEDBACK_LABELS: Record<FeedbackPolicy, string> = {
@@ -14,7 +14,7 @@ const FEEDBACK_LABELS: Record<FeedbackPolicy, string> = {
 
 /** A class's exam schedule: required exams from the course edition plus optional practice. */
 export function ExamSchedule({ classId, archived }: { classId: string; archived: boolean }) {
-  const timeZone = useInstitutionTimezone()
+  const timeZone = useWorkspaceTimezone()
   const [editing, setEditing] = useState<string | null>(null)
   const [adding, setAdding] = useState(false)
   const assignments = useQuery({ queryKey: ['assignments', classId], queryFn: () => api.get<ExamAssignment[]>(`/exam-assignments?classId=${classId}`) })
@@ -57,7 +57,7 @@ export function ExamSchedule({ classId, archived }: { classId: string; archived:
 
 function ScheduleForm({ assignment, classId, onDone }: { assignment?: ExamAssignment; classId?: string; onDone: () => void }) {
   const queryClient = useQueryClient()
-  const timeZone = useInstitutionTimezone()
+  const timeZone = useWorkspaceTimezone()
   const targetClass = assignment?.classId ?? classId!
   const available = useQuery({
     queryKey: ['assignments', targetClass, 'available'],

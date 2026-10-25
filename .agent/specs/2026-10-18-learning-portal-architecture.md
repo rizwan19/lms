@@ -54,7 +54,7 @@ These constraints are copied into the plan and apply across tasks:
 - Flyway owns schema changes; Hibernate schema mode is `validate`; no destructive automatic schema updates.
 - PostgreSQL is authoritative for deadlines, answers, grades, completion and durable jobs; browser storage is never the source of truth.
 - Content and exam publication editions are immutable; corrections publish a new edition.
-- Existing classes retain their course edition and existing attempts retain their question snapshots.
+- Existing classes retain their course edition and existing attempts stay on their immutable published exam edition.
 - No correct answers, grading keys or unpublished grades in student API payloads.
 - All protected records require server-side assignment or enrollment authorization.
 - Exams include automatic objective scoring and teacher-graded written answers; no file-based exam answers.
@@ -164,7 +164,7 @@ An exam belongs to a course; each immutable `exam_version` contains question tex
 
 Class exam assignments specify version, required/optional, opens/closes, optional duration, maximum attempts (default 1, 1–10), result policy and feedback policy. Defaults: objective-only `AUTO_PUBLISH`; mixed `TEACHER_PUBLISH`. Override to teacher publication is allowed; mixed auto-publication is not. `AFTER_CLOSE` feedback is allowed only with a closing time. Feedback defaults to score/comments without answer keys; explanations/keys are released only after closing and when the student has no active attempt. Practice exams can explicitly choose feedback after submission; warn teachers that immediate keys plus retries reveals answers.
 
-Start attempt under an enrollment-level lock. Check user/enrollment/class access, schedule and attempt count; return an existing in-progress attempt on repeated start. Default duration is 60 minutes; configured durations are 1–240 minutes, or untimed with a finite closing time. Effective deadline = minimum of start plus duration and assignment close, ignoring absent values. At least one deadline bound is mandatory. Shuffle once using secure randomness; store question/option order and full private snapshots. All times use server Clock, translated only for presentation.
+Start attempt under an enrollment-level lock. Check user/enrollment/class access, schedule and attempt count; return an existing in-progress attempt on repeated start. Default duration is 60 minutes; configured durations are 1–240 minutes, or untimed with a finite closing time. Effective deadline = minimum of start plus duration and assignment close, ignoring absent values. At least one deadline bound is mandatory. Questions and options are not shuffled: every learner sees the published exam edition in authored order. Attempts reference that edition, which never changes after publication, so no per-attempt question copy is stored. All times use server Clock, translated only for presentation.
 
 Each answer save locks the attempt first, checks `IN_PROGRESS` and `now < expires_at`, then checks expected answer revision. Insert with expected revision 0; increment on success; stale writes return 409 with current student-safe answer. Student UI serializes saves per question and retries only after reconciliation, never blindly replaces a newer answer. Submit flushes acknowledged saves before request; backend locks the same attempt and transitions once, scoring saved answers. At `now >= expires_at`, answer changes are rejected and finalization uses saved answers. Deadline finalization does not depend solely on a scheduler: reads/writes/submit also reconcile expired state. A scheduled job sweeps every 15 seconds. Repeated submit returns the existing finalized outcome. Unanswered questions receive zero; written items require explicit teacher grading, including intentional zero.
 
@@ -184,7 +184,7 @@ Generate PDF server-side with PDFBox, embedded Unicode font and QR verification 
 
 ## 14. Persistence layout and constraints
 
-All domain IDs are UUID; foreign keys are indexed on common joins. `version` columns implement optimistic locking for editable aggregates. SQL migrations are append-only after release. No cascade delete of published learning history. Independent module repositories use IDs, not lazy cross-module JPA entity graphs.
+All domain IDs are UUID; foreign keys are indexed on common joins. `version` columns implement optimistic locking for editable aggregates. SQL migrations are append-only after release. No cascade delete of published learning history. Independent module repositories use IDs, not lazy cross-module JPA entity graphs. Entity classes declare no enums, and enum values are never stored as strings: each enum has a permanent numeric code persisted in a `smallint` column through an `AttributeConverter`.
 
 | Group | Tables and important keys |
 | --- | --- |
@@ -195,7 +195,7 @@ All domain IDs are UUID; foreign keys are indexed on common joins. `version` col
 | Media | `media_assets` (unique storage key) |
 | Learning | `lesson_progress` (unique enrollment/lesson) |
 | Exams | `exams`, `exam_versions`, `exam_questions`, `question_options`, `exam_assignments` |
-| Attempts | `exam_attempts` (unique enrollment/assignment/attempt number, partial unique active attempt), `attempt_questions`, `attempt_answers` (unique attempt/question), `answer_grades`, `grade_revisions`, `published_question_grades` |
+| Attempts | `exam_attempts` (unique enrollment/assignment/attempt number, partial unique active attempt), `attempt_answers` (unique attempt/question), `answer_grades`, `grade_revisions`, `published_question_grades` |
 | Completion | `course_completions` (unique enrollment), `certificates` (unique completion, unique verification hash) |
 | Operations | `background_jobs` (unique deduplication key), `notifications`, `audit_events` |
 
@@ -227,7 +227,7 @@ REST base `/api/v1`; JSON UUIDs and ISO-8601 UTC timestamps. Page response `{ite
 | `/reports/classes/{id}/progress`, `/reports/classes/{id}/scores`, `/reports/classes/{id}/export` | Scoped staff reports; student never calls staff routes |
 | `GET /notifications`, `PUT /notifications/{id}/read` | Own in-app notifications |
 
-OpenAPI is checked into `docs/api/openapi.yaml` during implementation and kept synchronized in contract tests. `AnswerSaveCommand(long expectedRevision, Set<UUID> selectedOptionIds, String writtenText)` uses exactly one answer representation appropriate to the snapshot type. `AnswerSaved(UUID questionId,long revision,Instant savedAt)` acknowledges persistence, not just receipt. `AttemptView` includes server time/deadline, state, student-safe questions, own saved answers, and revision; it excludes keys, grading rubric and unpublished results.
+OpenAPI is checked into `docs/api/openapi.yaml` during implementation and kept synchronized in contract tests. `AnswerSaveCommand(long expectedRevision, Set<UUID> selectedOptionIds, String writtenText)` uses exactly one answer representation appropriate to the question type. `AnswerSaved(UUID questionId,long revision,Instant savedAt)` acknowledges persistence, not just receipt. `AttemptView` includes server time/deadline, state, student-safe questions, own saved answers, and revision; it excludes keys, grading rubric and unpublished results.
 
 Frontend routes: `/login`, `/change-password`, `/admin/settings`, `/admin/users`, `/teacher/courses`, `/teacher/courses/:id/edit`, `/teacher/classes`, `/teacher/classes/:id`, `/teacher/grading`, `/teacher/grading/:attemptId`, `/student`, `/student/enrollments/:id`, `/student/attempts/:id`, `/student/results`, `/student/certificates`, `/verify/:token`. Role switches use a shared account menu. Every list supports loading, empty, error and pagination states. Student exams provide saved/saving/error status, accessible timer announcements only at useful thresholds, and a submit confirmation showing unsaved answers. Do not persist exam answers or keys in localStorage. A disconnected tab may hold unacknowledged answers in memory and clearly warn about navigation loss.
 
